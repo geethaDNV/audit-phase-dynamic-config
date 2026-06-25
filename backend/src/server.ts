@@ -3,6 +3,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import 'express-async-errors';
 
+// Import routes
+import auditRoutes from './routes/audit.routes';
+import stepRoutes from './routes/step.routes';
+import metadataRoutes from './routes/metadata.routes';
+
 // Load environment variables
 dotenv.config();
 
@@ -30,10 +35,10 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API Routes will be added here
-// app.use('/api/audits', auditRoutes);
-// app.use('/api/audits/:auditId/phases/:phaseId/steps/:stepId', stepRoutes);
-// app.use('/api/metadata', metadataRoutes);
+// API Routes
+app.use('/api/audits', auditRoutes);
+app.use('/api/audits', stepRoutes); // Step routes mounted under /api/audits
+app.use('/api/metadata', metadataRoutes);
 
 // 404 handler
 app.use((req, res) => {
