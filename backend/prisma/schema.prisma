@@ -62,14 +62,18 @@ model AuditPhase {
 // ============================================================================
 
 model Client {
-  id        Int      @id @default(autoincrement())
-  auditId   Int      @unique
-  name      String   @db.VarChar(100)
-  email     String   @db.VarChar(100)
-  industry  String   @db.VarChar(50)
-  phone     String?  @db.VarChar(20)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  auditId        Int       @unique
+  name           String    @db.VarChar(100)
+  email          String    @db.VarChar(100)
+  industry       String    @db.VarChar(50)
+  phone          String?   @db.VarChar(20)
+  address        String?   @db.VarChar(255)
+  website        String?   @db.VarChar(255)
+  taxId          String?   @db.VarChar(50)
+  fiscalYearEnd  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Relations
   audit             Audit     @relation(fields: [auditId], references: [id], onDelete: Cascade)
@@ -170,15 +174,20 @@ model ChecklistItem {
 // ============================================================================
 
 model Document {
-  id         Int      @id @default(autoincrement())
-  auditId    Int
-  fileName   String   @db.VarChar(255)
-  fileType   String   @db.VarChar(50) // PDF, Excel, Word, Image
-  fileSize   Int?     // in bytes
-  filePath   String?  @db.VarChar(500)
-  uploadedAt DateTime @default(now())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  auditId        Int
+  title          String   @db.VarChar(255)
+  fileName       String?  @db.VarChar(255)
+  documentType   String   @db.VarChar(50) // Financial Statement, PDF, Excel, Word, Image
+  fileType       String?  @db.VarChar(50) // PDF, Excel, Word, Image
+  fileSize       Int?     // in bytes
+  filePath       String?  @db.VarChar(500)
+  description    String?  @db.Text
+  isConfidential Boolean  @default(false)
+  tags           String[] @default([])
+  uploadedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relations
   audit          Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
@@ -187,6 +196,7 @@ model Document {
 
   @@index([auditId])
   @@index([fileType])
+  @@index([documentType])
 }
 
 model DocumentReview {
@@ -216,7 +226,9 @@ model Finding {
   title       String   @db.VarChar(200)
   description String   @db.Text
   severity    String   @db.VarChar(20) // Low, Medium, High, Critical
+  category    String   @db.VarChar(100) // Type of finding
   status      String   @default("open") @db.VarChar(50) // open, in-review, resolved, closed
+  assignedTo  String?  @db.VarChar(100)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -229,15 +241,20 @@ model Finding {
   @@index([auditId])
   @@index([severity])
   @@index([status])
+  @@index([category])
 }
 
 model Evidence {
-  id          Int     @id @default(autoincrement())
-  findingId   Int
-  documentId  Int?    // References Step 5 documents
-  description String  @db.VarChar(500)
-  type        String  @db.VarChar(50) // Document, Screenshot, Interview, System Log
-  metadata    Json?   // Additional structured data
+  id           Int      @id @default(autoincrement())
+  findingId    Int
+  documentId   Int?     // References Step 5 documents
+  description  String   @db.VarChar(500)
+  source       String?  @db.VarChar(200)
+  documentPath String?  @db.VarChar(500)
+  type         String?  @db.VarChar(50) // Document, Screenshot, Interview, System Log
+  metadata     Json?    // Additional structured data
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   finding  Finding   @relation(fields: [findingId], references: [id], onDelete: Cascade)
@@ -249,14 +266,15 @@ model Evidence {
 }
 
 model Recommendation {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   findingId   Int
-  description String   @db.Text
-  priority    String   @db.VarChar(20) // Low, Medium, High
-  status      String   @default("pending") @db.VarChar(50) // pending, accepted, rejected, implemented
+  description String    @db.Text
+  priority    String    @db.VarChar(20) // Low, Medium, High
+  status      String    @default("pending") @db.VarChar(50) // pending, accepted, rejected, implemented
+  targetDate  DateTime?
   dueDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
   finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)

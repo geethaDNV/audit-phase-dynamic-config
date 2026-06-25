@@ -158,10 +158,11 @@ export interface DataConfig {
  * 
  * - prisma-simple: Read from single table using Prisma
  * - prisma-compose: Combine data from multiple sources
+ * - custom-query: Use custom repository with raw SQL queries
  * - custom: Use custom repository with complex queries
  */
 export interface FetchStrategy {
-  strategy: 'prisma-simple' | 'prisma-compose' | 'custom';
+  strategy: 'prisma-simple' | 'prisma-compose' | 'custom-query' | 'custom';
   model?: string;
   filter?: string;
   returnArray?: boolean; // For prisma-simple: use findMany instead of findUnique
@@ -171,6 +172,7 @@ export interface FetchStrategy {
     filter: string;
   }>;
   customRepositoryName?: string;
+  repositoryClass?: string; // Name of custom repository class
   repository?: string;
   method?: string;
 }
@@ -196,10 +198,12 @@ export interface DataSource {
  * - prisma-upsert: Insert or update single table
  * - prisma-create: Bulk create (for arrays)
  * - multi-table: Save to multiple related tables
+ * - conditional-save: Save with validation based on conditions
+ * - complex-transaction: Multi-table transaction with nested data
  * - custom: Use custom repository with transactions
  */
 export interface SaveStrategy {
-  strategy: 'prisma-upsert' | 'prisma-create' | 'multi-table' | 'custom';
+  strategy: 'prisma-upsert' | 'prisma-create' | 'multi-table' | 'conditional-save' | 'complex-transaction' | 'custom';
   transactional: boolean;
   model?: string;
   tables?: Array<{
@@ -208,6 +212,7 @@ export interface SaveStrategy {
     operation?: string;
     fields?: string[];
   }>;
+  repositoryClass?: string; // Name of custom repository class
   repository?: string;
   method?: string;
   bulkOperation?: boolean;

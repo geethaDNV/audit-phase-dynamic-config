@@ -1,7 +1,8 @@
+import { PrismaClient, Entity, Contact } from '@prisma/client';
 import { BaseStepRepository } from '../base/base-step.repository';
+import { ClientRepository } from '../domain/client.repository';
 import { EntityRepository } from '../domain/entity.repository';
-import { ContactRepository } from '../domain/contact.repository';
-import { StepContext } from '../../config/types/step-config.types';
+import { StepContext, StepDataPayload } from '../../config/types/step-config.types';
 import prisma from '../../config/database';
 
 /**
@@ -9,134 +10,106 @@ import prisma from '../../config/database';
  * Pattern 2: Multi-source Compose
  * 
  * Fetches data from multiple sources:
+ * - Client data with selected entity
  * - Entities (from Entity table)
  * - Contacts (from Contact table)
- * - Current selection (from Client table)
+ * 
+ * Save strategy:
+ * - Update client's selected entity
+ * - Upsert contacts (bulk operation)
  */
 export class Step2Repository extends BaseStepRepository {
+  private clientRepository: ClientRepository;
   private entityRepository: EntityRepository;
-  private contactRepository: ContactRepository;
 
-  constructor() {
-    super(prisma);
-    this.entityRepository = new EntityRepository();
-    this.contactRepository = new ContactRepository();
+  constructor(prismaClient?: PrismaClient) {
+    super(prismaClient || prisma);
+    this.clientRepository = new ClientRepository(this.prisma);
+    this.entityRepository = new EntityRepository(this.prisma);
   }
 
   /**
    * Fetch composed data from multiple sources
+   * Returns client data, entities, and contacts for selection
    */
-  async fetch(context: StepContext): Promise<any> {
+  async fetch(context: StepContext): Promise<StepDataPayload> {
     const { auditId } = context;
 
-    // Get the client first to retrieve current selection
-    const client = await prisma.client.findUnique({
-      where: { auditId },
-      select: {
-        id: true,
-        selectedEntityId: true,
-      },
-    });
+    // Fetch client data with entities and contacts
+    const clientData = await this.clientRepository.getFullClientData(auditId);
 
-    if (!client) {
-      throw new Error(`Client not found for audit ${auditId}`);
+    if (!clientData) {
+      return {
+        selectedEntityId: null,
+        entities: [],
+        contacts: [],
+      };
     }
 
-    // Fetch entities and contacts in parallel
-    const [entities, contacts] = await Promise.all([
-      this.entityRepository.findByClientId(client.id),
-      this.contactRepository.findByClientId(client.id),
-    ]);
-
-    // Transform entities for dropdown options
-    const entityOptions = entities.map((entity) => ({
-      value: entity.id,
-      label: entity.name,
-      metadata: {
+    // Transform for frontend consumption
+    return {
+      selectedEntityId: clientData.client.selectedEntityId,
+      clientName: clientData.client.name,
+      entities: clientData.entities.map((entity: Entity) => ({
+        id: entity.id,
+        name: entity.name,
         type: entity.type,
         description: entity.description,
-      },
-    }));
-
-    // Transform contacts for multi-select options
-    const contactOptions = contacts.map((contact) => ({
-      value: contact.id,
-      label: `${contact.name} (${contact.role})`,
-      metadata: {
+        registrationNumber: entity.registrationNumber,
+      })),
+      contacts: clientData.contacts.map((contact: Contact) => ({
+        id: contact.id,
+        name: contact.name,
         email: contact.email,
         phone: contact.phone,
         role: contact.role,
-      },
-    }));
-
-    return {
-      // Form values
-      formData: {
-        selectedEntityId: client.selectedEntityId,
-        selectedContacts: [], // TODO: Store selected contacts when we add a junction table
-      },
-      
-      // Dropdown/select options
-      options: {
-        entities: entityOptions,
-        contacts: contactOptions,
-      },
-
-      // Additional metadata
-      metadata: {
-        totalEntities: entities.length,
-        totalContacts: contacts.length,
-        clientId: client.id,
-      },
+        isPrimary: contact.isPrimary,
+      })),
     };
   }
 
   /**
-   * Save the selected entity ID back to the Client record
+   * Save entity selection and contacts
+   * Uses transaction to ensure atomicity
    */
-  async save(context: StepContext, data: any): Promise<any> {
+  async save(
+    data: StepDataPayload,
+    context: StepContext,
+    transaction?: unknown
+  ): Promise<StepDataPayload> {
     const { auditId } = context;
-    const { selectedEntityId, selectedContacts } = data;
+    const { selectedEntityId, contacts } = data;
 
-    // Validate that the entity exists and belongs to this client
-    const client = await prisma.client.findUnique({
-      where: { auditId },
-      select: { id: true },
-    });
+    const prismaClient = transaction || this.prisma;
 
-    if (!client) {
-      throw new Error(`Client not found for audit ${auditId}`);
-    }
-
+    // Validate entity belongs to client (custom validator will also check this)
     if (selectedEntityId) {
-      const isValid = await this.entityRepository.validateOwnership(
-        selectedEntityId,
-        client.id
+      const isValid = await this.entityRepository.validateEntityOwnership(
+        auditId,
+        selectedEntityId
       );
 
       if (!isValid) {
         throw new Error('Selected entity does not belong to this client');
       }
+
+      // Update client's selected entity
+      await this.clientRepository.updateSelectedEntity(
+        auditId,
+        selectedEntityId,
+        prismaClient
+      );
     }
 
-    // Update the client with the selected entity
-    const updatedClient = await prisma.client.update({
-      where: { auditId },
-      data: {
-        selectedEntityId: selectedEntityId || null,
-      },
-    });
+    // Upsert contacts if provided
+    if (contacts && Array.isArray(contacts) && contacts.length > 0) {
+      await this.clientRepository.upsertContacts(auditId, contacts, prismaClient);
+    }
 
-    // TODO: Store selected contacts in a junction table (AuditContact)
-    // For now, we'll just return the selection
-    
     return {
       success: true,
-      data: {
-        selectedEntityId: updatedClient.selectedEntityId,
-        selectedContacts: selectedContacts || [],
-      },
-      message: 'Entity and contact selection saved successfully',
+      selectedEntityId,
+      contactsUpdated: contacts?.length || 0,
     };
   }
 }

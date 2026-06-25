@@ -56,7 +56,7 @@ export const Phase1Step2Config: StepConfig = {
   dataConfig: {
     fetch: {
       strategy: 'prisma-compose',
-      customRepositoryName: 'Step2Repository',
+      repositoryClass: 'Step2Repository',
       sources: [
         {
           name: 'entities',
@@ -72,16 +72,9 @@ export const Phase1Step2Config: StepConfig = {
     },
 
     save: {
-      strategy: 'prisma-upsert',
+      strategy: 'custom',
       transactional: false,
-      tables: [
-        {
-          model: 'client',
-          idField: 'auditId',
-          operation: 'upsert',
-          fields: ['selectedEntityId'],
-        },
-      ],
+      repositoryClass: 'Step2Repository',
       validationRules: [
         {
           type: 'required-field',

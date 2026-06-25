@@ -10,6 +10,7 @@ const router = Router();
  */
 
 router.get('/', (req, res) => auditController.list(req, res));
+router.get('/:id/metadata', (req, res) => auditController.getMetadata(req, res));
 router.get('/:id', (req, res) => auditController.getById(req, res));
 router.post('/', (req, res) => auditController.create(req, res));
 router.put('/:id', (req, res) => auditController.update(req, res));

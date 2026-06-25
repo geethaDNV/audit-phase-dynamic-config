@@ -126,10 +126,13 @@ export class GenericStepRepository extends BaseStepRepository {
       auditId: context.auditId,
     };
 
-    // Remove undefined values
+    // Remove undefined values and convert date strings to Date objects
     Object.keys(saveData).forEach((key) => {
       if (saveData[key] === undefined) {
         delete saveData[key];
+      } else if (typeof saveData[key] === 'string' && this.isDateField(key)) {
+        // Convert ISO date strings to Date objects
+        saveData[key] = new Date(saveData[key]);
       }
     });
 
@@ -145,6 +148,20 @@ export class GenericStepRepository extends BaseStepRepository {
       console.error(`Error upserting ${model}:`, error);
       throw new Error(`Failed to save ${model}: ${error.message}`);
     }
+  }
+
+  /**
+   * Check if a field name represents a date field
+   */
+  private isDateField(fieldName: string): boolean {
+    const dateFieldPatterns = [
+      /date$/i,        // ends with 'date' (e.g., completedDate, reviewDate)
+      /^date/i,        // starts with 'date'
+      /at$/i,          // ends with 'at' (e.g., createdAt, updatedAt)
+      /yearend$/i,     // fiscal year end
+    ];
+    
+    return dateFieldPatterns.some(pattern => pattern.test(fieldName));
   }
 
   /**

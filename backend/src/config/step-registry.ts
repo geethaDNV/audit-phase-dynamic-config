@@ -1,7 +1,10 @@
 import { StepConfig } from './types/step-config.types';
 import { Phase1Step1Config } from './steps/phase1/step1.config';
 import { Phase1Step2Config } from './steps/phase1/step2.config';
+import { Phase1Step3Config } from './steps/phase1/step3.config';
+import { Phase2Step1Config } from './steps/phase2/step1.config';
 import { Phase2Step2Config } from './steps/phase2/step2.config';
+import { Phase2Step3Config } from './steps/phase2/step3.config';
 
 /**
  * Step Registry
@@ -30,13 +33,14 @@ class StepRegistry {
    */
   private registerSteps(): void {
     // Phase 1: Client Assessment
-    this.register(Phase1Step1Config);
-    this.register(Phase1Step2Config);
+    this.register(Phase1Step1Config);  // Step 1: Client Selection (Pattern 1: Simple CRUD)
+    this.register(Phase1Step2Config);  // Step 2: Entity Selection (Pattern 2: Multi-source Compose)
+    this.register(Phase1Step3Config);  // Step 3: Risk Assessment (Pattern 3: Complex Fetch)
 
-    // Phase 2: Checklist Execution
-    this.register(Phase2Step2Config);
-    
-    // More steps will be added in later phases
+    // Phase 2: Audit Execution
+    this.register(Phase2Step1Config);  // Step 1: Document Upload (Pattern 5: Conditional Save)
+    this.register(Phase2Step2Config);  // Step 2: Checklist Items (Pattern 4: Array CRUD)
+    this.register(Phase2Step3Config);  // Step 3: Findings (Pattern 6: Complex Transaction)
 
     console.log(`✅ Step Registry initialized with ${this.configs.size} step(s)`);
   }

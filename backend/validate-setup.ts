@@ -1,6 +1,6 @@
 /**
  * Validation Script
- * 
+ * npx tsx validate-setup.ts
  * This script validates that all configurations are correctly registered
  * and type-safe without requiring a database connection.
  */

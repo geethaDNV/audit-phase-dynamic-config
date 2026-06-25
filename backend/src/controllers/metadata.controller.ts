@@ -107,6 +107,55 @@ export class MetadataController {
       });
     }
   }
+
+  /**
+   * GET /api/metadata/phases
+   * 
+   * Returns all available phases with their steps
+   */
+  async getAllPhases(_req: Request, res: Response): Promise<void> {
+    try {
+      const allSteps = metadataRegistry.getAllSteps();
+      
+      // Group steps by phase
+      const phaseMap = new Map<number, any>();
+      
+      allSteps.forEach((step) => {
+        if (!phaseMap.has(step.phaseId)) {
+          phaseMap.set(step.phaseId, {
+            phaseId: step.phaseId,
+            phaseName: step.phaseId === 1 ? 'Client Assessment' : 
+                       step.phaseId === 2 ? 'Audit Execution' : `Phase ${step.phaseId}`,
+            steps: [],
+          });
+        }
+        
+        phaseMap.get(step.phaseId)!.steps.push({
+          stepId: step.stepId,
+          stepName: step.stepName,
+          description: step.description,
+        });
+      });
+      
+      const phases = Array.from(phaseMap.values()).sort((a, b) => a.phaseId - b.phaseId);
+
+      res.json({
+        success: true,
+        data: phases,
+      });
+    } catch (error: any) {
+      console.error('Error getting all phases:', error);
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve phase steps',
+          details: error.message,
+        },
+      });
+    }
+  }
 }
 
 export const metadataController = new MetadataController();

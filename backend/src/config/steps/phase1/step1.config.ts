@@ -73,9 +73,49 @@ export const Phase1Step1Config: StepConfig = {
         placeholder: '+1 (555) 123-4567',
         helpText: 'Optional - include country code',
         validation: {
-          pattern: '^\\+?[1-9]\\d{1,14}$',
+          pattern: '^\\+?[\\d\\s\\-\\(\\)]{7,20}$',
           patternMessage: 'Enter a valid phone number with country code (e.g., +1 555-123-4567)',
         },
+      },
+      {
+        name: 'address',
+        type: 'text',
+        label: 'Address',
+        placeholder: '123 Main St, City, State ZIP',
+        helpText: 'Primary business address',
+        validation: {
+          maxLength: 255,
+        },
+      },
+      {
+        name: 'website',
+        type: 'text',
+        label: 'Website',
+        placeholder: 'https://www.company.com',
+        helpText: 'Company website URL',
+        validation: {
+          pattern: '^https?:\\/\\/.+',
+          patternMessage: 'Enter a valid URL starting with http:// or https://',
+          maxLength: 255,
+        },
+      },
+      {
+        name: 'taxId',
+        type: 'text',
+        label: 'Tax ID',
+        placeholder: '12-3456789',
+        helpText: 'Employer Identification Number (EIN) or Tax ID',
+        validation: {
+          maxLength: 50,
+        },
+      },
+      {
+        name: 'fiscalYearEnd',
+        type: 'date',
+        label: 'Fiscal Year End',
+        placeholder: 'YYYY-MM-DD',
+        helpText: 'End date of fiscal year',
+        validation: {},
       },
     ],
     // No business rules for this simple step

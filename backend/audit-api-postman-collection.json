@@ -1,0 +1,1037 @@
+{
+  "info": {
+    "name": "Audit Phase Dynamic API",
+    "description": "Complete test collection for metadata-driven audit management system - 6 patterns across 2 phases",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "audit-api"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "auditId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "phase1Id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "phase2Id",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entityId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "documentId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Metadata Endpoints",
+      "item": [
+        {
+          "name": "Get All Phases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/metadata/phases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metadata", "phases"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Steps for Phase 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/metadata/phases/{{phase1Id}}/steps",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metadata", "phases", "{{phase1Id}}", "steps"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Steps for Phase 2",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/metadata/phases/{{phase2Id}}/steps",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metadata", "phases", "{{phase2Id}}", "steps"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Audit Metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/metadata",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "metadata"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 1 - Step 1: Client Selection (Pattern 1 - Simple CRUD)",
+      "item": [
+        {
+          "name": "Fetch Client Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has client data structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('client');",
+                  "});",
+                  "",
+                  "// Save clientId for next requests",
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.client && jsonData.client.id) {",
+                  "        pm.collectionVariables.set('clientId', jsonData.client.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Client Data - New Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "pm.test('Response has success structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Save clientId",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.id) {",
+                  "        pm.collectionVariables.set('clientId', jsonData.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corporation\",\n  \"industry\": \"Technology\",\n  \"address\": \"123 Tech Street, San Francisco, CA 94105\",\n  \"phone\": \"+1-415-555-0100\",\n  \"email\": \"contact@acmecorp.com\",\n  \"website\": \"https://www.acmecorp.com\",\n  \"taxId\": \"12-3456789\",\n  \"fiscalYearEnd\": \"2024-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Client Data - Update Existing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{clientId}},\n  \"name\": \"Acme Corporation (Updated)\",\n  \"industry\": \"Technology & AI\",\n  \"address\": \"123 Tech Street, San Francisco, CA 94105\",\n  \"phone\": \"+1-415-555-0100\",\n  \"email\": \"contact@acmecorp.com\",\n  \"website\": \"https://www.acmecorp.com\",\n  \"taxId\": \"12-3456789\",\n  \"fiscalYearEnd\": \"2024-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 1 - Step 2: Entity Selection (Pattern 2 - Multi-source Compose)",
+      "item": [
+        {
+          "name": "Fetch Entity Selection Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has multi-source structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('client');",
+                  "    pm.expect(jsonData).to.have.property('entities');",
+                  "    pm.expect(jsonData).to.have.property('contacts');",
+                  "});",
+                  "",
+                  "// Save entityId if available",
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.entities && jsonData.entities.length > 0) {",
+                  "        pm.collectionVariables.set('entityId', jsonData.entities[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Entity Selection - With Contacts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Validation passes for entity ownership', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Save entityId",
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.selectedEntityId) {",
+                  "        pm.collectionVariables.set('entityId', jsonData.data.selectedEntityId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectedEntityId\": 1,\n  \"contacts\": [\n    {\n      \"name\": \"John Smith\",\n      \"role\": \"CFO\",\n      \"email\": \"john.smith@acmecorp.com\",\n      \"phone\": \"+1-415-555-0101\"\n    },\n    {\n      \"name\": \"Sarah Johnson\",\n      \"role\": \"Controller\",\n      \"email\": \"sarah.johnson@acmecorp.com\",\n      \"phone\": \"+1-415-555-0102\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Entity Selection - Validation Error (Wrong Entity)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Validation error for entity ownership', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData.error).to.include('does not belong to client');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectedEntityId\": 99999,\n  \"contacts\": [\n    {\n      \"name\": \"Test Contact\",\n      \"role\": \"Manager\",\n      \"email\": \"test@example.com\",\n      \"phone\": \"+1-555-0000\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 1 - Step 3: Risk Assessment (Pattern 3 - Complex Fetch)",
+      "item": [
+        {
+          "name": "Fetch Risk Assessment Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has risk assessment structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('entity');",
+                  "    pm.expect(jsonData).to.have.property('previousRiskScore');",
+                  "    pm.expect(jsonData).to.have.property('industryBenchmark');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Risk Assessment - Risk Increased",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Risk increase validation passes', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"riskLevel\": \"High\",\n  \"riskScore\": 85,\n  \"previousRisk\": \"Medium\",\n  \"justification\": \"Identified significant control weaknesses in revenue recognition process. Material misstatements detected in prior period.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Risk Assessment - Missing Justification Error",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Validation error for missing justification', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData.error).to.include('justification is required');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"riskLevel\": \"High\",\n  \"riskScore\": 85\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 - Step 1: Document Upload (Pattern 5 - Conditional Save)",
+      "item": [
+        {
+          "name": "Fetch Document Upload Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has document structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('documents');",
+                  "});",
+                  "",
+                  "// Save documentId if available",
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.documents && jsonData.documents.length > 0) {",
+                  "        pm.collectionVariables.set('documentId', jsonData.documents[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Document - New Upload (Always Save)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Document saved successfully', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Save documentId",
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.document && jsonData.data.document.id) {",
+                  "        pm.collectionVariables.set('documentId', jsonData.data.document.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Financial Statements 2024\",\n  \"documentType\": \"Financial Statement\",\n  \"filePath\": \"/documents/financials-2024.pdf\",\n  \"fileSize\": 2048576,\n  \"description\": \"Annual financial statements for audit year 2024\",\n  \"isConfidential\": true,\n  \"tags\": \"financial, statements, 2024\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Document - Update Review (Conditional Save)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Review saved only when status changed', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{documentId}},\n  \"title\": \"Financial Statements 2024\",\n  \"documentType\": \"Financial Statement\",\n  \"filePath\": \"/documents/financials-2024.pdf\",\n  \"fileSize\": 2048576,\n  \"description\": \"Annual financial statements - approved version\",\n  \"isConfidential\": true,\n  \"tags\": \"financial, statements, 2024, approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 - Step 2: Checklist Management (Pattern 4 - Array CRUD)",
+      "item": [
+        {
+          "name": "Fetch Checklist Items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has checklist items array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('items');",
+                  "    pm.expect(jsonData.items).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Checklist Items - Array Operations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Array CRUD operations successful', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"title\": \"Review segregation of duties\",\n      \"description\": \"Adequate segregation confirmed\",\n      \"category\": \"Financial\",\n      \"priority\": \"High\",\n      \"isCompleted\": true\n    },\n    {\n      \"title\": \"Test authorization controls\",\n      \"description\": \"Verify proper authorization is in place for all transactions\",\n      \"category\": \"Operational\",\n      \"priority\": \"Medium\",\n      \"isCompleted\": false\n    },\n    {\n      \"title\": \"Verify revenue recognition\",\n      \"description\": \"Ensure revenue is recognized in accordance with accounting standards\",\n      \"category\": \"Financial\",\n      \"priority\": \"High\",\n      \"isCompleted\": false\n    },\n    {\n      \"title\": \"Review SOX compliance\",\n      \"description\": \"All SOX requirements met\",\n      \"category\": \"Compliance\",\n      \"priority\": \"Critical\",\n      \"isCompleted\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Checklist Items - Update & Delete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"id\": 1,\n      \"title\": \"Review segregation of duties (Updated)\",\n      \"description\": \"Adequate segregation confirmed - updated notes\",\n      \"category\": \"Financial\",\n      \"priority\": \"High\",\n      \"isCompleted\": true\n    },\n    {\n      \"title\": \"Identify fraud risks\",\n      \"description\": \"Comprehensive fraud risk assessment\",\n      \"category\": \"Compliance\",\n      \"priority\": \"Critical\",\n      \"isCompleted\": false\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "2"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 - Step 3: Findings Recording (Pattern 6 - Complex Transaction)",
+      "item": [
+        {
+          "name": "Fetch Findings Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has findings structure', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('findings');",
+                  "    pm.expect(jsonData).to.have.property('relatedDocuments');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Finding - Complex Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Complex transaction successful', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Finding created with audit trail', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('finding');",
+                  "    pm.expect(jsonData.data).to.have.property('auditTrail');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Material Weakness in Revenue Recognition\",\n  \"description\": \"Identified lack of proper documentation and review procedures for revenue recognition on multi-element arrangements. Several contracts were recognized prematurely without proper completion criteria validation.\",\n  \"severity\": \"High\",\n  \"category\": \"Revenue\",\n  \"status\": \"Open\",\n  \"assignedTo\": \"senior-auditor@firm.com\",\n  \"evidence\": [\n    {\n      \"description\": \"Contract review findings from Q1 2024\",\n      \"source\": \"Audit workpaper A-102\",\n      \"documentPath\": \"/documents/revenue-audit-Q1.pdf\"\n    },\n    {\n      \"description\": \"Email correspondence regarding premature recognition\",\n      \"source\": \"Email dated 2024-05-15\",\n      \"documentPath\": \"/documents/email-evidence.pdf\"\n    }\n  ],\n  \"recommendations\": [\n    {\n      \"description\": \"Implement comprehensive revenue recognition checklist aligned with ASC 606\",\n      \"priority\": \"High\",\n      \"targetDate\": \"2024-09-30\"\n    },\n    {\n      \"description\": \"Establish quarterly review process for all multi-element contracts\",\n      \"priority\": \"High\",\n      \"targetDate\": \"2024-08-31\"\n    },\n    {\n      \"description\": \"Provide training to accounting staff on revenue recognition standards\",\n      \"priority\": \"Medium\",\n      \"targetDate\": \"2024-07-31\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Finding - Document Reference Validation Error",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Validation error for invalid document reference', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "    pm.expect(jsonData.error).to.include('document');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Finding\",\n  \"description\": \"Test description\",\n  \"severity\": \"Low\",\n  \"category\": \"Other\",\n  \"status\": \"Open\",\n  \"assignedTo\": \"auditor@firm.com\",\n  \"evidence\": [\n    {\n      \"description\": \"Invalid document reference test\",\n      \"source\": \"Test source\",\n      \"documentPath\": \"/documents/invalid-99999.pdf\"\n    }\n  ],\n  \"recommendations\": [\n    {\n      \"description\": \"Test recommendation\",\n      \"priority\": \"Low\",\n      \"targetDate\": \"2024-12-31\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Finding - Status Change",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 1,\n  \"title\": \"Material Weakness in Revenue Recognition\",\n  \"description\": \"Identified lack of proper documentation and review procedures for revenue recognition on multi-element arrangements. Several contracts were recognized prematurely without proper completion criteria validation.\",\n  \"severity\": \"High\",\n  \"category\": \"Revenue\",\n  \"status\": \"Resolved\",\n  \"assignedTo\": \"senior-auditor@firm.com\",\n  \"evidence\": [\n    {\n      \"description\": \"Updated contract review findings\",\n      \"source\": \"Audit workpaper A-102 (Revised)\",\n      \"documentPath\": \"/documents/revenue-audit-resolved.pdf\"\n    }\n  ],\n  \"recommendations\": [\n    {\n      \"description\": \"Implement comprehensive revenue recognition checklist aligned with ASC 606\",\n      \"priority\": \"High\",\n      \"targetDate\": \"2024-09-30\"\n    },\n    {\n      \"description\": \"Establish quarterly review process for all multi-element contracts\",\n      \"priority\": \"High\",\n      \"targetDate\": \"2024-08-31\"\n    },\n    {\n      \"description\": \"Provide training to accounting staff on revenue recognition standards\",\n      \"priority\": \"Medium\",\n      \"targetDate\": \"2024-07-31\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase2Id}}/steps/3",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase2Id}}", "steps", "3"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Scenarios",
+      "item": [
+        {
+          "name": "Invalid Audit ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/99999/phases/1/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "99999", "phases", "1", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Phase ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/99/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "99", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Step ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/99",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "99"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Malformed JSON Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client\": {\n    \"name\": \"Test\",\n    invalid json here\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Validation error message present', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"industry\": \"Technology\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/audits/{{auditId}}/phases/{{phase1Id}}/steps/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audits", "{{auditId}}", "phases", "{{phase1Id}}", "steps", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script",
+          "console.log('Making request to: ' + pm.request.url);",
+          "console.log('Using auditId: ' + pm.collectionVariables.get('auditId'));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has valid JSON', function () {",
+          "    pm.response.to.be.json;",
+          "});"
+        ]
+      }
+    }
+  ]
+}

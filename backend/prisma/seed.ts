@@ -99,6 +99,10 @@ async function main() {
       email: 'contact@acmecorp.com',
       industry: 'Technology',
       phone: '+1 (555) 123-4567',
+      address: '123 Tech Street, San Francisco, CA 94105',
+      website: 'https://www.acmecorp.com',
+      taxId: '12-3456789',
+      fiscalYearEnd: new Date('2024-12-31'),
     },
   });
 
@@ -109,6 +113,10 @@ async function main() {
       email: 'info@techstart.io',
       industry: 'Finance',
       phone: '+1 (555) 987-6543',
+      address: '456 Innovation Drive, Austin, TX 78701',
+      website: 'https://www.techstart.io',
+      taxId: '98-7654321',
+      fiscalYearEnd: new Date('2024-12-31'),
     },
   });
 
@@ -131,7 +139,7 @@ async function main() {
     },
   });
 
-  const entity2 = await prisma.entity.create({
+  await prisma.entity.create({
     data: {
       clientId: client1.id,
       name: 'Acme Subsidiary LLC',
@@ -280,10 +288,13 @@ async function main() {
   const doc1 = await prisma.document.create({
     data: {
       auditId: audit1.id,
+      title: 'Financial Statements Q4 2025',
       fileName: 'Financial_Statements_Q4_2025.pdf',
+      documentType: 'Financial Statement',
       fileType: 'PDF',
       fileSize: 2048576,
       filePath: '/uploads/audit1/financial_statements.pdf',
+      description: 'Quarterly financial statements for review',
     },
   });
 
@@ -299,10 +310,13 @@ async function main() {
   const doc2 = await prisma.document.create({
     data: {
       auditId: audit1.id,
+      title: 'Bank Reconciliation December',
       fileName: 'Bank_Reconciliation_December.xlsx',
+      documentType: 'Financial Statement',
       fileType: 'Excel',
       fileSize: 512000,
       filePath: '/uploads/audit1/bank_recon.xlsx',
+      description: 'December bank reconciliation',
     },
   });
 
@@ -320,10 +334,14 @@ async function main() {
   const doc3 = await prisma.document.create({
     data: {
       auditId: audit1.id,
+      title: 'Internal Controls Documentation',
       fileName: 'Internal_Controls_Documentation.pdf',
+      documentType: 'PDF',
       fileType: 'PDF',
       fileSize: 3145728,
       filePath: '/uploads/audit1/controls.pdf',
+      description: 'Internal controls documentation and procedures',
+      isConfidential: true,
     },
   });
 
@@ -349,6 +367,7 @@ async function main() {
       description:
         'During our review, we identified that the same employee who creates vendor invoices also has the authority to approve payments. This represents a significant control weakness that could lead to unauthorized or fraudulent transactions.',
       severity: 'High',
+      category: 'Financial',
       status: 'open',
     },
   });
@@ -423,6 +442,7 @@ async function main() {
       description:
         'Physical inventory counts performed on December 31, 2025 revealed discrepancies totaling $12,450 when compared to system records. Investigation is needed to determine root cause.',
       severity: 'Medium',
+      category: 'Operational',
       status: 'in-review',
     },
   });

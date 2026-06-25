@@ -9,6 +9,12 @@ const router = Router();
  * Provides form schemas and step information to the frontend
  */
 
+// Get all phases
+router.get(
+  '/phases',
+  (req, res) => metadataController.getAllPhases(req, res)
+);
+
 // Get form schema for a specific step
 router.get(
   '/phases/:phaseId/steps/:stepId',

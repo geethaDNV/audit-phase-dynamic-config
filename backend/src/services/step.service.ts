@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { MetadataRegistryService } from './metadata-registry.service';
-import { GenericStepRepository } from '../repositories/generic/generic-step.repository';
-import { Step2Repository } from '../repositories/custom/step2.repository';
+import { ValidationService } from './validation.service';
+import { RepositoryRegistry } from '../repositories/repository-registry';
 import {
   StepContext,
   StepDataPayload,
@@ -18,22 +18,23 @@ type PrismaTransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '
  * This is the core of the metadata-driven architecture:
  * 
  * 1. Loads step configuration from metadata registry
- * 2. Executes appropriate fetch/save strategy
- * 3. Handles transactions for multi-table operations
- * 4. Provides consistent API regardless of step complexity
+ * 2. Validates data using multi-layer validation
+ * 3. Executes appropriate fetch/save strategy
+ * 4. Handles transactions for multi-table operations
+ * 5. Provides consistent API regardless of step complexity
  * 
  * Adding a new step? Just create its config file - this service handles it automatically!
  */
 export class StepService {
-  private genericRepo: GenericStepRepository;
-  private step2Repo: Step2Repository;
+  private repoRegistry: RepositoryRegistry;
+  private validationService: ValidationService;
 
   constructor(
     private prisma: PrismaClient,
     private metadataRegistry: MetadataRegistryService
   ) {
-    this.genericRepo = new GenericStepRepository(prisma);
-    this.step2Repo = new Step2Repository();
+    this.repoRegistry = new RepositoryRegistry(prisma);
+    this.validationService = new ValidationService();
   }
 
   /**
@@ -67,8 +68,8 @@ export class StepService {
     const config = this.metadataRegistry.getConfig(phaseId, stepId);
     const context: StepContext = { auditId, phaseId, stepId };
 
-    // TODO: Add validation here using config.formSchema
-    // For Phase 3, we skip validation to focus on data flow
+    // ✅ VALIDATION - Multi-layer validation before saving
+    await this.validationService.validate(payload, config.formSchema, context);
 
     // Execute save strategy
     const result = await this.executeSaveStrategy(config, payload, context);
@@ -83,26 +84,26 @@ export class StepService {
     config: StepConfig,
     context: StepContext
   ): Promise<StepDataPayload | null> {
-    const { strategy } = config.dataConfig.fetch;
+    const { strategy, repositoryClass } = config.dataConfig.fetch;
 
+    // If a custom repository is specified, use it (handles all custom strategies)
+    if (repositoryClass) {
+      const repository = this.repoRegistry.getRepository(repositoryClass);
+      return repository.fetch(context);
+    }
+
+    // Generic strategies that don't require custom repositories
+    const genericRepo = this.repoRegistry.getGenericRepository();
+    
     switch (strategy) {
       case 'prisma-simple':
-        return this.genericRepo.fetchSimple(config, context);
-
-      case 'prisma-compose':
-        // Use custom repository for multi-source composition
-        // For now, hardcoded to Step2Repository - can be made dynamic later
-        if (config.phaseId === 1 && config.stepId === 2) {
-          return this.step2Repo.fetch(context);
-        }
-        throw new Error(`No custom repository configured for step ${config.phaseId}-${config.stepId}`);
-
-      case 'custom':
-        // Will be implemented in Phase 6
-        throw new Error('custom fetch strategy not yet implemented');
+        return genericRepo.fetchSimple(config, context);
 
       default:
-        throw new Error(`Unknown fetch strategy: ${strategy}`);
+        throw new Error(
+          `Fetch strategy '${strategy}' requires a custom repositoryClass in the step configuration. ` +
+          `Please add 'repositoryClass: "YourRepositoryName"' to the fetch config.`
+        );
     }
   }
 
@@ -135,34 +136,32 @@ export class StepService {
     context: StepContext,
     transaction?: PrismaTransactionClient
   ): Promise<StepDataPayload> {
-    const { strategy } = config.dataConfig.save;
+    const { strategy, repositoryClass } = config.dataConfig.save;
 
-    // Check if this step has a custom repository override
-    if (config.phaseId === 1 && config.stepId === 2) {
-      // Step 2 uses custom repository with validation
-      return this.step2Repo.save(context, payload);
+    // If a custom repository is specified, use it (handles all custom strategies)
+    if (repositoryClass) {
+      const repository = this.repoRegistry.getRepository(repositoryClass);
+      return repository.save(payload, context, transaction);
     }
+
+    // Generic strategies that don't require custom repositories
+    const genericRepo = this.repoRegistry.getGenericRepository();
 
     switch (strategy) {
       case 'prisma-upsert':
       case 'prisma-create':
-        return this.genericRepo.saveWithStrategy(
+        return genericRepo.saveWithStrategy(
           config.dataConfig.save,
           payload,
           context,
           transaction
         );
 
-      case 'multi-table':
-        // Will be implemented in Phase 5
-        throw new Error('multi-table strategy not yet implemented');
-
-      case 'custom':
-        // Will be implemented in Phase 6
-        throw new Error('custom save strategy not yet implemented');
-
       default:
-        throw new Error(`Unknown save strategy: ${strategy}`);
+        throw new Error(
+          `Save strategy '${strategy}' requires a custom repositoryClass in the step configuration. ` +
+          `Please add 'repositoryClass: "YourRepositoryName"' to the save config.`
+        );
     }
   }
 }
