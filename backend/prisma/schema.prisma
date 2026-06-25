@@ -1,0 +1,317 @@
+// Prisma Schema for Metadata-Driven Audit Management System
+// Database: PostgreSQL (Neon)
+// Models: 15 tables supporting 6 representative steps across 2 phases
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// CORE AUDIT MODELS
+// ============================================================================
+
+model Audit {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(200)
+  description String?   @db.Text
+  status      String    @default("draft") @db.VarChar(50) // draft, in-progress, completed, archived
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  client          Client?
+  phases          AuditPhase[]
+  checklistItems  ChecklistItem[]
+  documents       Document[]
+  findings        Finding[]
+  riskAssessment  RiskAssessment?
+  stepData        StepData[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditPhase {
+  id          Int       @id @default(autoincrement())
+  auditId     Int
+  phaseId     Int       // 1 = Client Assessment, 2 = Checklist Execution
+  phaseName   String    @db.VarChar(100)
+  status      String    @default("pending") @db.VarChar(50) // pending, in-progress, completed
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, phaseId])
+  @@index([auditId])
+  @@index([status])
+}
+
+// ============================================================================
+// STEP 1: CLIENT BASIC INFORMATION (Pattern 1: Simple CRUD)
+// ============================================================================
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  auditId   Int      @unique
+  name      String   @db.VarChar(100)
+  email     String   @db.VarChar(100)
+  industry  String   @db.VarChar(50)
+  phone     String?  @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audit             Audit     @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  entities          Entity[]
+  contacts          Contact[]
+  selectedEntityId  Int?      // For Step 2
+
+  @@index([auditId])
+  @@index([email])
+}
+
+// ============================================================================
+// STEP 2: ENTITY SELECTION & CONTACTS (Pattern 2: Multi-source Compose)
+// ============================================================================
+
+model Entity {
+  id                 Int     @id @default(autoincrement())
+  clientId           Int
+  name               String  @db.VarChar(200)
+  type               String  @db.VarChar(50) // corporation, llc, partnership, sole-proprietorship
+  registrationNumber String? @db.VarChar(50)
+  isActive           Boolean @default(true)
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([type])
+}
+
+model Contact {
+  id        Int     @id @default(autoincrement())
+  clientId  Int
+  name      String  @db.VarChar(100)
+  email     String  @db.VarChar(100)
+  phone     String? @db.VarChar(20)
+  role      String? @db.VarChar(100)
+  isPrimary Boolean @default(false)
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([email])
+}
+
+// ============================================================================
+// STEP 3: RISK ASSESSMENT (Pattern 3: Complex Fetch + Simple Save)
+// ============================================================================
+
+model RiskAssessment {
+  id             Int      @id @default(autoincrement())
+  auditId        Int      @unique
+  riskLevel      String   @db.VarChar(20) // Low, Medium, High, Critical
+  riskScore      Float    // 0-100
+  previousRisk   String?  @db.VarChar(20)
+  justification  String?  @db.Text
+  assessedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([riskLevel])
+  @@index([assessedAt])
+}
+
+// ============================================================================
+// STEP 4: CHECKLIST EXECUTION (Pattern 4: Array CRUD)
+// ============================================================================
+
+model ChecklistItem {
+  id          Int       @id @default(autoincrement())
+  auditId     Int
+  phaseId     Int
+  stepId      Int
+  description String    @db.VarChar(200)
+  status      String    @default("pending") @db.VarChar(50) // pending, in-progress, completed, blocked
+  notes       String?   @db.Text
+  sortOrder   Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId, phaseId, stepId])
+  @@index([status])
+}
+
+// ============================================================================
+// STEP 5: DOCUMENT REVIEW (Pattern 5: Conditional Save)
+// ============================================================================
+
+model Document {
+  id         Int      @id @default(autoincrement())
+  auditId    Int
+  fileName   String   @db.VarChar(255)
+  fileType   String   @db.VarChar(50) // PDF, Excel, Word, Image
+  fileSize   Int?     // in bytes
+  filePath   String?  @db.VarChar(500)
+  uploadedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  audit          Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  review         DocumentReview?
+  evidenceLinks  Evidence[]
+
+  @@index([auditId])
+  @@index([fileType])
+}
+
+model DocumentReview {
+  id            Int       @id @default(autoincrement())
+  documentId    Int       @unique
+  status        String    @db.VarChar(50) // pending, approved, rejected
+  reviewedBy    String?   @db.VarChar(100)
+  reviewedAt    DateTime?
+  justification String?   @db.Text // Required when status = rejected
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([status])
+}
+
+// ============================================================================
+// STEP 6: FINDINGS & RECOMMENDATIONS (Pattern 6: Complex Transaction)
+// ============================================================================
+
+model Finding {
+  id          Int      @id @default(autoincrement())
+  auditId     Int
+  title       String   @db.VarChar(200)
+  description String   @db.Text
+  severity    String   @db.VarChar(20) // Low, Medium, High, Critical
+  status      String   @default("open") @db.VarChar(50) // open, in-review, resolved, closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  audit           Audit               @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  evidence        Evidence[]
+  recommendations Recommendation[]
+  auditTrail      FindingAuditTrail[]
+
+  @@index([auditId])
+  @@index([severity])
+  @@index([status])
+}
+
+model Evidence {
+  id          Int     @id @default(autoincrement())
+  findingId   Int
+  documentId  Int?    // References Step 5 documents
+  description String  @db.VarChar(500)
+  type        String  @db.VarChar(50) // Document, Screenshot, Interview, System Log
+  metadata    Json?   // Additional structured data
+
+  // Relations
+  finding  Finding   @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id])
+
+  @@index([findingId])
+  @@index([documentId])
+  @@index([type])
+}
+
+model Recommendation {
+  id          Int      @id @default(autoincrement())
+  findingId   Int
+  description String   @db.Text
+  priority    String   @db.VarChar(20) // Low, Medium, High
+  status      String   @default("pending") @db.VarChar(50) // pending, accepted, rejected, implemented
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([findingId])
+  @@index([priority])
+  @@index([status])
+}
+
+model FindingAuditTrail {
+  id        Int      @id @default(autoincrement())
+  findingId Int
+  action    String   @db.VarChar(100) // created, updated, status_changed, evidence_added, etc.
+  changedBy String   @db.VarChar(100)
+  changedAt DateTime @default(now())
+  changes   Json     // Snapshot of what changed
+
+  // Relations
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([findingId])
+  @@index([changedAt])
+}
+
+// ============================================================================
+// METADATA STORAGE
+// ============================================================================
+
+model StepConfiguration {
+  id          Int      @id @default(autoincrement())
+  phaseId     Int
+  stepId      Int
+  stepName    String   @db.VarChar(100)
+  description String?  @db.Text
+  formSchema  Json     // Serialized FormSchema
+  dataConfig  Json     // Serialized DataConfig
+  isActive    Boolean  @default(true)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([phaseId, stepId])
+  @@index([isActive])
+}
+
+model StepData {
+  id        Int      @id @default(autoincrement())
+  auditId   Int
+  phaseId   Int
+  stepId    Int
+  data      Json     // Generic JSON storage for step data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, phaseId, stepId])
+  @@index([auditId])
+}
