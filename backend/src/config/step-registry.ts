@@ -1,5 +1,7 @@
 import { StepConfig } from './types/step-config.types';
 import { Phase1Step1Config } from './steps/phase1/step1.config';
+import { Phase1Step2Config } from './steps/phase1/step2.config';
+import { Phase2Step2Config } from './steps/phase2/step2.config';
 
 /**
  * Step Registry
@@ -29,8 +31,11 @@ class StepRegistry {
   private registerSteps(): void {
     // Phase 1: Client Assessment
     this.register(Phase1Step1Config);
+    this.register(Phase1Step2Config);
 
     // Phase 2: Checklist Execution
+    this.register(Phase2Step2Config);
+    
     // More steps will be added in later phases
 
     console.log(`✅ Step Registry initialized with ${this.configs.size} step(s)`);

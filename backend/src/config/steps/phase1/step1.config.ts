@@ -23,6 +23,7 @@ import { StepConfig } from '../../types/step-config.types';
  *   - phone: Optional phone number (pattern validation)
  */
 export const Phase1Step1Config: StepConfig = {
+  stepKey: 'phase1-step1',
   phaseId: 1,
   stepId: 1,
   stepName: 'Client Basic Information',

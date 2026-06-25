@@ -49,6 +49,7 @@ export class GenericStepRepository extends BaseStepRepository {
   /**
    * Fetch data using prisma-simple strategy
    * Reads from a single table based on auditId
+   * Supports both single record (findUnique) and array (findMany)
    */
   async fetchSimple(config: StepConfig, context: StepContext): Promise<StepDataPayload | null> {
     const model = config.dataConfig.fetch.model;
@@ -57,17 +58,25 @@ export class GenericStepRepository extends BaseStepRepository {
     }
 
     const delegate = this.getPrismaDelegate(model);
+    const returnArray = config.dataConfig.fetch.returnArray;
 
     try {
-      // Try to find existing record by auditId
-      const record = await delegate.findUnique({
-        where: { auditId: context.auditId },
-      });
-
-      return record || null;
+      if (returnArray) {
+        // Fetch array of records
+        const records = await delegate.findMany({
+          where: { auditId: context.auditId },
+        });
+        return { items: records };
+      } else {
+        // Fetch single record by auditId
+        const record = await delegate.findUnique({
+          where: { auditId: context.auditId },
+        });
+        return record || null;
+      }
     } catch (error) {
       console.error(`Error fetching ${model}:`, error);
-      return null;
+      return returnArray ? { items: [] } : null;
     }
   }
 
@@ -158,17 +167,27 @@ export class GenericStepRepository extends BaseStepRepository {
     // Delete existing records if configured
     if (saveStrategy.deleteExisting) {
       await delegate.deleteMany({
-        where: this.buildStepWhere(context),
+        where: this.buildAuditWhere(context.auditId),
       });
     }
 
     // Prepare bulk data
-    const items = Array.isArray(data.items) ? data.items : [data];
+    // Handle different payload formats:
+    // 1. Array directly: [{...}, {...}]
+    // 2. Object with items property: { items: [{...}, {...}] }
+    // 3. Single item object: {...}
+    let items: any[];
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data.items && Array.isArray(data.items)) {
+      items = data.items;
+    } else {
+      items = [data];
+    }
+
     const bulkData = items.map((item: any) => ({
       ...item,
       auditId: context.auditId,
-      phaseId: context.phaseId,
-      stepId: context.stepId,
     }));
 
     try {
@@ -179,7 +198,7 @@ export class GenericStepRepository extends BaseStepRepository {
 
       // Fetch and return created records
       const created = await delegate.findMany({
-        where: this.buildStepWhere(context),
+        where: this.buildAuditWhere(context.auditId),
       });
 
       return { items: created };

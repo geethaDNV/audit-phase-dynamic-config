@@ -90,6 +90,7 @@ model Entity {
   clientId           Int
   name               String  @db.VarChar(200)
   type               String  @db.VarChar(50) // corporation, llc, partnership, sole-proprietorship
+  description        String? @db.Text
   registrationNumber String? @db.VarChar(50)
   isActive           Boolean @default(true)
 
@@ -146,12 +147,11 @@ model RiskAssessment {
 model ChecklistItem {
   id          Int       @id @default(autoincrement())
   auditId     Int
-  phaseId     Int
-  stepId      Int
-  description String    @db.VarChar(200)
-  status      String    @default("pending") @db.VarChar(50) // pending, in-progress, completed, blocked
-  notes       String?   @db.Text
-  sortOrder   Int       @default(0)
+  title       String    @db.VarChar(200)
+  description String?   @db.Text
+  category    String    @db.VarChar(50) // Financial, Operational, Compliance, IT, HR, Other
+  priority    String    @db.VarChar(20) // Low, Medium, High, Critical
+  isCompleted Boolean   @default(false)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -159,8 +159,10 @@ model ChecklistItem {
   // Relations
   audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
 
-  @@index([auditId, phaseId, stepId])
-  @@index([status])
+  @@index([auditId])
+  @@index([category])
+  @@index([priority])
+  @@index([isCompleted])
 }
 
 // ============================================================================

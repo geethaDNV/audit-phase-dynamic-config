@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { MetadataRegistryService } from './metadata-registry.service';
 import { GenericStepRepository } from '../repositories/generic/generic-step.repository';
+import { Step2Repository } from '../repositories/custom/step2.repository';
 import {
   StepContext,
   StepDataPayload,
@@ -25,12 +26,14 @@ type PrismaTransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '
  */
 export class StepService {
   private genericRepo: GenericStepRepository;
+  private step2Repo: Step2Repository;
 
   constructor(
     private prisma: PrismaClient,
     private metadataRegistry: MetadataRegistryService
   ) {
     this.genericRepo = new GenericStepRepository(prisma);
+    this.step2Repo = new Step2Repository();
   }
 
   /**
@@ -87,8 +90,12 @@ export class StepService {
         return this.genericRepo.fetchSimple(config, context);
 
       case 'prisma-compose':
-        // Will be implemented in Phase 5
-        throw new Error('prisma-compose strategy not yet implemented');
+        // Use custom repository for multi-source composition
+        // For now, hardcoded to Step2Repository - can be made dynamic later
+        if (config.phaseId === 1 && config.stepId === 2) {
+          return this.step2Repo.fetch(context);
+        }
+        throw new Error(`No custom repository configured for step ${config.phaseId}-${config.stepId}`);
 
       case 'custom':
         // Will be implemented in Phase 6
@@ -129,6 +136,12 @@ export class StepService {
     transaction?: PrismaTransactionClient
   ): Promise<StepDataPayload> {
     const { strategy } = config.dataConfig.save;
+
+    // Check if this step has a custom repository override
+    if (config.phaseId === 1 && config.stepId === 2) {
+      // Step 2 uses custom repository with validation
+      return this.step2Repo.save(context, payload);
+    }
 
     switch (strategy) {
       case 'prisma-upsert':

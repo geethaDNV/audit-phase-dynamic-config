@@ -17,12 +17,23 @@
  * This is the root configuration object loaded by the metadata registry
  */
 export interface StepConfig {
+  stepKey: string;
   phaseId: number;
   stepId: number;
   stepName: string;
   description?: string;
   formSchema: FormSchema;
   dataConfig: DataConfig;
+  businessRules?: Array<{
+    name: string;
+    description: string;
+    type: string;
+    config?: Record<string, any>;
+  }>;
+  navigation?: {
+    previous?: string;
+    next?: string;
+  };
 }
 
 // ============================================================================
@@ -36,6 +47,8 @@ export interface StepConfig {
 export interface FormSchema {
   fields: FieldDefinition[];
   businessRules?: BusinessRule[];
+  layout?: 'vertical' | 'horizontal' | 'grid';
+  submitLabel?: string;
 }
 
 /**
@@ -48,11 +61,23 @@ export interface FieldDefinition {
   label: string;
   placeholder?: string;
   helpText?: string;
+  required?: boolean;
   validation?: FieldValidation;
   options?: string[] | SelectOption[];
   arrayItemType?: 'text' | 'object';
+  arrayItemSchema?: {
+    fields: FieldDefinition[];
+  };
   arraySchema?: FieldDefinition[];
   defaultValue?: any;
+  displayConfig?: {
+    placeholder?: string;
+    helpText?: string;
+    rows?: number;
+    addButtonLabel?: string;
+    removeButtonLabel?: string;
+    emptyMessage?: string;
+  };
 }
 
 export type FieldType =
@@ -60,6 +85,7 @@ export type FieldType =
   | 'email'
   | 'number'
   | 'select'
+  | 'multi-select'
   | 'checkbox'
   | 'textarea'
   | 'date'
@@ -76,6 +102,7 @@ export interface SelectOption {
  */
 export interface FieldValidation {
   required?: boolean;
+  message?: string;
   minLength?: number;
   maxLength?: number;
   min?: number;
@@ -136,7 +163,14 @@ export interface DataConfig {
 export interface FetchStrategy {
   strategy: 'prisma-simple' | 'prisma-compose' | 'custom';
   model?: string;
-  sources?: DataSource[];
+  filter?: string;
+  returnArray?: boolean; // For prisma-simple: use findMany instead of findUnique
+  sources?: Array<{
+    name: string;
+    model: string;
+    filter: string;
+  }>;
+  customRepositoryName?: string;
   repository?: string;
   method?: string;
 }
@@ -168,11 +202,23 @@ export interface SaveStrategy {
   strategy: 'prisma-upsert' | 'prisma-create' | 'multi-table' | 'custom';
   transactional: boolean;
   model?: string;
-  tables?: TableSaveConfig[];
+  tables?: Array<{
+    model?: string;
+    idField?: string;
+    operation?: string;
+    fields?: string[];
+  }>;
   repository?: string;
   method?: string;
   bulkOperation?: boolean;
   deleteExisting?: boolean;
+  validationRules?: Array<{
+    type: string;
+    field: string;
+    message: string;
+    value?: any;
+    validatorName?: string;
+  }>;
 }
 
 /**
