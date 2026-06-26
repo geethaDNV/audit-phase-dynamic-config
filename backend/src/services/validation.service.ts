@@ -27,12 +27,15 @@ export class ValidationService {
    * @throws Error with validation messages if validation fails
    */
   async validate(payload: any, formSchema: FormSchema, context?: any): Promise<void> {
-    const errors: string[] = [];
+    const fieldErrors: Record<string, string[]> = {};
+    const generalErrors: string[] = [];
 
     // 1. Field-level validation
     for (const field of formSchema.fields) {
-      const fieldErrors = this.validateField(field, payload[field.name]);
-      errors.push(...fieldErrors);
+      const errors = this.validateField(field, payload[field.name]);
+      if (errors.length > 0) {
+        fieldErrors[field.name] = errors;
+      }
     }
 
     // 2. Business rules validation (conditional, cross-step, cross-field)
@@ -42,12 +45,18 @@ export class ValidationService {
         formSchema.businessRules,
         context
       );
-      errors.push(...ruleErrors);
+      generalErrors.push(...ruleErrors);
     }
 
     // If any errors, throw validation exception
-    if (errors.length > 0) {
-      throw new ValidationError(errors);
+    if (Object.keys(fieldErrors).length > 0 || generalErrors.length > 0) {
+      // If we have field-specific errors, use the new format
+      if (Object.keys(fieldErrors).length > 0) {
+        throw new ValidationError(fieldErrors);
+      } else {
+        // Otherwise use general errors
+        throw new ValidationError(generalErrors);
+      }
     }
   }
 
@@ -82,13 +91,21 @@ export class ValidationService {
         break;
 
       case 'number':
-        if (typeof value !== 'number' || isNaN(value)) {
+        // Accept both numbers and numeric strings, convert if needed
+        let numValue: number;
+        if (typeof value === 'string') {
+          numValue = parseFloat(value);
+        } else {
+          numValue = value;
+        }
+        
+        if (typeof numValue !== 'number' || isNaN(numValue)) {
           errors.push(`${field.label} must be a valid number`);
         } else {
-          if (validation.min !== undefined && value < validation.min) {
+          if (validation.min !== undefined && numValue < validation.min) {
             errors.push(`${field.label} must be at least ${validation.min}`);
           }
-          if (validation.max !== undefined && value > validation.max) {
+          if (validation.max !== undefined && numValue > validation.max) {
             errors.push(`${field.label} must be at most ${validation.max}`);
           }
         }
@@ -277,14 +294,28 @@ export class ValidationService {
 }
 
 /**
- * Custom validation error class
+ * Custom validation error class with support for field-specific errors
  */
 export class ValidationError extends Error {
   public errors: string[];
+  public fieldErrors: Record<string, string[]>;
 
-  constructor(errors: string[]) {
-    super(`Validation failed: ${errors.join(', ')}`);
+  constructor(errors: string[] | Record<string, string[]>) {
+    if (Array.isArray(errors)) {
+      // Legacy format: array of strings
+      super(`Validation failed: ${errors.join(', ')}`);
+      this.errors = errors;
+      this.fieldErrors = {};
+    } else {
+      // New format: field-specific errors
+      const allErrors: string[] = [];
+      Object.entries(errors).forEach(([field, fieldErrs]) => {
+        allErrors.push(...fieldErrs.map(err => `${field}: ${err}`));
+      });
+      super(`Validation failed: ${allErrors.join(', ')}`);
+      this.errors = allErrors;
+      this.fieldErrors = errors;
+    }
     this.name = 'ValidationError';
-    this.errors = errors;
   }
 }

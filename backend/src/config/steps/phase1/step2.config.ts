@@ -47,7 +47,7 @@ export const Phase1Step2Config: StepConfig = {
         // Options populated dynamically from fetched contacts
         optionsSource: {
           dataPath: 'contacts',
-          labelField: 'name',
+          labelField: 'displayName',
           valueField: 'id',
         },
       },

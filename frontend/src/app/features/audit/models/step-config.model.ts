@@ -32,6 +32,17 @@ export interface FieldDefinition {
   };
   arrayItemType?: 'text' | 'object';
   arraySchema?: FieldDefinition[];
+  arrayItemSchema?: {
+    fields: FieldDefinition[];
+  };
+  displayConfig?: {
+    placeholder?: string;
+    helpText?: string;
+    rows?: number;
+    addButtonLabel?: string;
+    removeButtonLabel?: string;
+    emptyMessage?: string;
+  };
 }
 
 export interface FieldValidation {

@@ -17,9 +17,98 @@ export class FindingRepository extends BaseStepRepository {
 
   /**
    * Implement abstract save method
+   * Handles bulk save operations for findings with nested evidence and recommendations
    */
   async save(data: any, context: StepContext, transaction?: any): Promise<StepDataPayload> {
-    return this.saveWithTransaction(context.auditId, data, transaction);
+    const prismaClient = transaction || this.prisma;
+    const auditId = context.auditId;
+
+    // Extract items array from payload
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    // Delete all existing findings for this audit (cascade deletes evidence and recommendations)
+    await prismaClient.finding.deleteMany({
+      where: { auditId }
+    });
+
+    // If no items provided, return empty array
+    if (items.length === 0) {
+      return { items: [] };
+    }
+
+    // Create all new findings with their nested data
+    const createdFindings = await Promise.all(
+      items.map((item: any) => this.createFindingWithNested(auditId, item, prismaClient))
+    );
+
+    return { items: createdFindings };
+  }
+
+  /**
+   * Create a single finding with evidence and recommendations in a transaction
+   */
+  private async createFindingWithNested(
+    auditId: number, 
+    data: any, 
+    prismaClient: any
+  ): Promise<any> {
+    const { evidence = [], recommendations = [], ...findingData } = data;
+
+    // Validate business rules
+    this.validateFinding(findingData, evidence, recommendations);
+
+    // Create the finding
+    const finding = await prismaClient.finding.create({
+      data: {
+        auditId,
+        title: findingData.title,
+        description: findingData.description,
+        severity: findingData.severity,
+        category: findingData.category,
+        status: findingData.status,
+        assignedTo: findingData.assignedTo || null
+      }
+    });
+
+    // Create evidence entries
+    const createdEvidence = [];
+    if (evidence && evidence.length > 0) {
+      for (const evidenceItem of evidence) {
+        const created = await prismaClient.evidence.create({
+          data: {
+            findingId: finding.id,
+            description: evidenceItem.description,
+            source: evidenceItem.source,
+            documentPath: evidenceItem.documentPath || null
+          }
+        });
+        createdEvidence.push(created);
+      }
+    }
+
+    // Create recommendation entries
+    const createdRecommendations = [];
+    if (recommendations && recommendations.length > 0) {
+      for (const recommendation of recommendations) {
+        const created = await prismaClient.recommendation.create({
+          data: {
+            findingId: finding.id,
+            description: recommendation.description,
+            priority: recommendation.priority,
+            targetDate: recommendation.targetDate ? new Date(recommendation.targetDate) : null,
+            status: 'Pending'
+          }
+        });
+        createdRecommendations.push(created);
+      }
+    }
+
+    // Return complete finding with nested data
+    return {
+      ...finding,
+      evidence: createdEvidence,
+      recommendations: createdRecommendations
+    };
   }
 
   /**
@@ -60,130 +149,6 @@ export class FindingRepository extends BaseStepRepository {
     });
 
     return finding;
-  }
-
-  /**
-   * Complex transaction to save finding with evidence and recommendations
-   * Demonstrates Pattern 6: Complex Transaction Strategy
-   */
-  async saveWithTransaction(auditId: number, data: any, transaction?: any): Promise<any> {
-    const { evidence = [], recommendations = [], ...findingData } = data;
-
-    // Validate business rules
-    this.validateFinding(findingData, evidence, recommendations);
-
-    // If transaction is provided, use it directly; otherwise start a new one
-    if (transaction) {
-      return this.executeSave(auditId, data, findingData, evidence, recommendations, transaction);
-    }
-
-    try {
-      // Use Prisma transaction to ensure atomicity
-      const result = await this.prisma.$transaction(async (tx) => {
-        return this.executeSave(auditId, data, findingData, evidence, recommendations, tx);
-      });
-
-      console.log(
-        `Transaction complete: Created finding ${result.id} with ${result.evidence.length} evidence items and ${result.recommendations.length} recommendations`
-      );
-
-      return result;
-    } catch (error) {
-      console.error('Transaction failed:', error);
-      throw new Error(`Failed to save finding: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Execute the save operation within a transaction
-   */
-  private async executeSave(
-    auditId: number,
-    data: any,
-    findingData: any,
-    evidence: any[],
-    recommendations: any[],
-    tx: any
-  ): Promise<any> {
-        // 1. Create or update the finding
-        let finding;
-        if (data.id) {
-          // Update existing finding
-          finding = await tx.finding.update({
-            where: { id: data.id },
-            data: {
-              title: findingData.title,
-              description: findingData.description,
-              severity: findingData.severity,
-              category: findingData.category,
-              status: findingData.status,
-              assignedTo: findingData.assignedTo || null,
-              updatedAt: new Date()
-            }
-          });
-
-          // Delete existing evidence and recommendations (will recreate)
-          await tx.evidence.deleteMany({
-            where: { findingId: finding.id }
-          });
-
-          await tx.recommendation.deleteMany({
-            where: { findingId: finding.id }
-          });
-        } else {
-          // Create new finding
-          finding = await tx.finding.create({
-            data: {
-              auditId,
-              title: findingData.title,
-              description: findingData.description,
-              severity: findingData.severity,
-              category: findingData.category,
-              status: findingData.status,
-              assignedTo: findingData.assignedTo || null
-            }
-          });
-        }
-
-        // 2. Create evidence entries
-        const createdEvidence = [];
-        if (evidence && evidence.length > 0) {
-          for (const evidenceItem of evidence) {
-            const created = await tx.evidence.create({
-              data: {
-                findingId: finding.id,
-                description: evidenceItem.description,
-                source: evidenceItem.source,
-                documentPath: evidenceItem.documentPath || null
-              }
-            });
-            createdEvidence.push(created);
-          }
-        }
-
-        // 3. Create recommendation entries
-        const createdRecommendations = [];
-        if (recommendations && recommendations.length > 0) {
-          for (const recommendation of recommendations) {
-            const created = await tx.recommendation.create({
-              data: {
-                findingId: finding.id,
-                description: recommendation.description,
-                priority: recommendation.priority,
-                targetDate: recommendation.targetDate ? new Date(recommendation.targetDate) : null,
-                status: 'Pending'
-              }
-            });
-            createdRecommendations.push(created);
-          }
-        }
-
-        // 4. Return complete finding with nested data
-        return {
-          ...finding,
-          evidence: createdEvidence,
-          recommendations: createdRecommendations
-        };
   }
 
   /**

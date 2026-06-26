@@ -168,29 +168,39 @@ export class DynamicFormComponent implements OnInit {
    */
   private populateDynamicOptions(): void {
     const data = this.initialData();
+    console.log('[DynamicForm] populateDynamicOptions - initialData:', data);
+    
     if (!data) {
       console.log('[DynamicForm] No initial data for options population');
       return;
     }
 
     const fields = this.formSchema().fields;
+    console.log('[DynamicForm] Form fields:', fields);
     
     for (const field of fields) {
-      if ((field.type === 'select' || field.type === 'multi-select') && field.optionsSource && !field.options) {
+      if ((field.type === 'select' || field.type === 'multi-select') && field.optionsSource) {
         const { dataPath, labelField, valueField } = field.optionsSource;
         const sourceData = data[dataPath];
         
-        console.log(`[DynamicForm] Populating options for ${field.name} from ${dataPath}:`, sourceData);
+        console.log(`[DynamicForm] Field: ${field.name}, Type: ${field.type}`);
+        console.log(`[DynamicForm] optionsSource:`, field.optionsSource);
+        console.log(`[DynamicForm] Looking for data at path "${dataPath}" in:`, data);
+        console.log(`[DynamicForm] Source data found:`, sourceData);
         
-        if (Array.isArray(sourceData)) {
+        if (Array.isArray(sourceData) && sourceData.length > 0) {
           field.options = sourceData.map((item: any) => ({
             label: item[labelField] || '',
             value: item[valueField]
           }));
           
-          console.log(`[DynamicForm] Populated ${field.options.length} options for ${field.name}:`, field.options);
+          console.log(`[DynamicForm] ✅ Populated ${field.options.length} options for ${field.name}:`, field.options);
+        } else if (Array.isArray(sourceData) && sourceData.length === 0) {
+          console.warn(`[DynamicForm] ⚠️ Source data for ${field.name} is empty array`);
+          field.options = [];
         } else {
-          console.warn(`[DynamicForm] Source data for ${field.name} is not an array:`, sourceData);
+          console.error(`[DynamicForm] ❌ Source data for ${field.name} is not an array:`, sourceData);
+          field.options = [];
         }
       }
     }
@@ -248,9 +258,33 @@ export class DynamicFormComponent implements OnInit {
       return;
     }
 
+    // Get form value and convert types
+    const formValue = this.convertFormTypes(this.form().value);
+
     // Emit form value
     this.submitting.set(true);
-    this.formSubmit.emit(this.form().value);
+    this.formSubmit.emit(formValue);
+  }
+
+  /**
+   * Convert form values to proper types based on field definitions
+   */
+  private convertFormTypes(formValue: any): any {
+    const converted = { ...formValue };
+    
+    this.formSchema().fields.forEach(field => {
+      const value = converted[field.name];
+      
+      if (value !== null && value !== undefined && value !== '') {
+        if (field.type === 'number') {
+          // Convert string numbers to actual numbers
+          const numValue = typeof value === 'string' ? parseFloat(value) : value;
+          converted[field.name] = isNaN(numValue) ? null : numValue;
+        }
+      }
+    });
+    
+    return converted;
   }
 
   /**
@@ -291,14 +325,72 @@ export class DynamicFormComponent implements OnInit {
   }
 
   /**
+   * Set server-side validation errors
+   * @param errors Array of error messages or object with field-specific errors
+   */
+  setServerErrors(errors: string[] | Record<string, string>): void {
+    console.log('[DynamicForm] setServerErrors called with:', errors);
+    
+    if (Array.isArray(errors)) {
+      // General form-level errors
+      console.log('[DynamicForm] Setting form-level errors');
+      this.formErrors.set(errors);
+    } else {
+      // Field-specific errors
+      console.log('[DynamicForm] Setting field-specific errors');
+      const formLevelErrors: string[] = [];
+      
+      Object.entries(errors).forEach(([fieldName, errorMessage]) => {
+        const control = this.form().get(fieldName);
+        if (control) {
+          console.log(`[DynamicForm] Setting error on field ${fieldName}:`, errorMessage);
+          // Set custom error on the field
+          control.setErrors({ serverError: errorMessage });
+          control.markAsTouched();
+        } else {
+          console.log(`[DynamicForm] Field ${fieldName} not found, adding to form-level errors`);
+          // If field not found, add to form-level errors
+          formLevelErrors.push(`${fieldName}: ${errorMessage}`);
+        }
+      });
+      
+      this.formErrors.set(formLevelErrors);
+    }
+    
+    console.log('[DynamicForm] Final formErrors:', this.formErrors());
+  }
+
+  /**
+   * Clear server-side errors
+   */
+  clearServerErrors(): void {
+    this.formErrors.set([]);
+    // Clear server errors from all controls
+    Object.keys(this.form().controls).forEach(key => {
+      const control = this.form().get(key);
+      if (control?.hasError('serverError')) {
+        const errors = control.errors;
+        delete errors?.['serverError'];
+        control.setErrors(Object.keys(errors || {}).length > 0 ? errors : null);
+      }
+    });
+  }
+
+  /**
    * Validate and get form value
    */
   validateAndGetValue(): { valid: boolean; value: any } {
+    // Clear any previous server errors before revalidating
+    this.clearServerErrors();
+    
     if (this.form().invalid) {
       this.form().markAllAsTouched();
       this.collectFormErrors();
       return { valid: false, value: null };
     }
-    return { valid: true, value: this.form().value };
+    
+    // Convert types before returning
+    const formValue = this.convertFormTypes(this.form().value);
+    return { valid: true, value: formValue };
   }
 }

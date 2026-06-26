@@ -272,9 +272,9 @@ export class AuditWizardComponent implements OnInit {
     '1-1': 'Client Basic Information',
     '1-2': 'Entity Selection',
     '1-3': 'Risk Assessment',
-    '2-1': 'Checklist Execution',
-    '2-2': 'Document Review',
-    '2-3': 'Findings & Recommendations'
+    '2-1': 'Document Upload',
+    '2-2': 'Checklist Items',
+    '2-3': 'Audit Findings'
   };
 
   async ngOnInit() {
@@ -322,6 +322,7 @@ export class AuditWizardComponent implements OnInit {
         this.currentPhase(),
         this.currentStep()
       );
+      console.log('[AuditWizard] Loaded metadata:', metadata);
       this.stepMetadata.set(metadata);
 
       // Load step data
@@ -333,9 +334,11 @@ export class AuditWizardComponent implements OnInit {
             this.currentPhase(),
             this.currentStep()
           );
+          console.log('[AuditWizard] Loaded step data:', data);
           this.stepData.set(data);
         } catch (error) {
           // No existing data - start with empty form
+          console.log('[AuditWizard] No existing data, starting with empty form');
           this.stepData.set(null);
         }
       }
@@ -389,24 +392,95 @@ export class AuditWizardComponent implements OnInit {
         formValue
       );
 
+      // Clear any previous errors on success
+      if (this.dynamicFormRef) {
+        this.dynamicFormRef.clearServerErrors();
+      }
+
       // Auto-advance to next step after successful save
       const maxSteps = this.getStepsForCurrentPhase().length;
       if (this.currentStep() < maxSteps) {
+        // More steps in current phase - go to next step
         await this.nextStep();
       } else {
-        // Last step completed
-        alert('Phase completed! You can now move to the next phase.');
+        // Last step of phase completed - check if there's a next phase
+        const currentPhaseIndex = this.phases.findIndex(p => p.id === this.currentPhase());
+        const hasNextPhase = currentPhaseIndex >= 0 && currentPhaseIndex < this.phases.length - 1;
+        
+        if (hasNextPhase) {
+          // Navigate to next phase's first step
+          const nextPhase = this.phases[currentPhaseIndex + 1];
+          console.log('[AuditWizard] Phase completed, navigating to next phase:', nextPhase.id);
+          this.currentPhase.set(nextPhase.id);
+          this.currentStep.set(1);
+          await this.loadCurrentStep();
+        } else {
+          // Last phase completed - navigate back to audit list
+          console.log('[AuditWizard] All phases completed, navigating to audit list');
+          this.router.navigate(['/audits']);
+        }
       }
     } catch (error: any) {
       console.error('Save failed:', error);
-      let message = 'Failed to save step data';
-      if (error.error?.message) {
-        message = error.error.message;
+      console.log('Error status:', error.status);
+      console.log('Error response:', error.error);
+      
+      // Handle validation errors from the server
+      if (this.dynamicFormRef) {
+        if (error.status === 400 && error.error?.error?.code === 'VALIDATION_ERROR') {
+          // Parse validation errors and display them
+          console.log('Handling validation error');
+          const errorData = error.error.error;
+          const errors = this.parseValidationErrors(errorData);
+          console.log('Parsed errors:', errors);
+          this.dynamicFormRef.setServerErrors(errors);
+        } else {
+          // Generic error - show at form level
+          console.log('Handling generic error');
+          const message = error.error?.error?.message || error.error?.message || 'Failed to save step data';
+          this.dynamicFormRef.setServerErrors([message]);
+        }
+        
+        // Reset submitting state so user can retry
+        this.dynamicFormRef.resetSubmitting();
       }
-      alert(message);
     } finally {
       this.loadingStep.set(false);
     }
+  }
+
+  /**
+   * Parse validation errors from server response
+   * Converts error messages into field-specific or general errors
+   */
+  private parseValidationErrors(errorResponse: any): string[] | Record<string, string> {
+    // Check if backend returned field-specific errors
+    if (errorResponse.fieldErrors && Object.keys(errorResponse.fieldErrors).length > 0) {
+      // Convert field errors from string[] to string (take first error for each field)
+      const fieldErrors: Record<string, string> = {};
+      Object.entries(errorResponse.fieldErrors).forEach(([field, errors]) => {
+        if (Array.isArray(errors) && errors.length > 0) {
+          fieldErrors[field] = errors[0]; // Take first error for each field
+        }
+      });
+      return fieldErrors;
+    }
+    
+    // Otherwise check for general errors array
+    if (errorResponse.errors && Array.isArray(errorResponse.errors)) {
+      return errorResponse.errors;
+    }
+    
+    // Fallback to message
+    const errorMessage = errorResponse.message || 'Validation failed';
+    
+    // Split multi-line errors
+    const errors = errorMessage
+      .split('\\n')
+      .filter((line: string) => line.trim().length > 0)
+      .map((line: string) => line.trim());
+    
+    return errors.length > 0 ? errors : [errorMessage];
   }
 
   onCancel() {

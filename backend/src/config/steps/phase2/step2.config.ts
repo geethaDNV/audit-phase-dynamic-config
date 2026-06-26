@@ -24,6 +24,7 @@ export const Phase2Step2Config: StepConfig = {
         label: 'Checklist Items',
         type: 'array',
         required: true,
+        arrayItemType: 'object',
         validation: {
           required: true,
           minItems: 1,
@@ -58,6 +59,7 @@ export const Phase2Step2Config: StepConfig = {
               label: 'Category',
               type: 'select',
               required: true,
+              options: ['Financial', 'Operational', 'Compliance', 'IT', 'HR', 'Other'],
               validation: {
                 required: true,
                 enum: ['Financial', 'Operational', 'Compliance', 'IT', 'HR', 'Other'],
@@ -72,6 +74,7 @@ export const Phase2Step2Config: StepConfig = {
               label: 'Priority',
               type: 'select',
               required: true,
+              options: ['Low', 'Medium', 'High', 'Critical'],
               validation: {
                 required: true,
                 enum: ['Low', 'Medium', 'High', 'Critical'],

@@ -69,6 +69,12 @@ export class FieldSelectComponent {
     const ctrl = this.control();
     
     if (!ctrl.errors) return errors;
+    
+    // Server-side errors take precedence
+    if (ctrl.errors['serverError']) {
+      errors.push(ctrl.errors['serverError']);
+    }
+    
     if (ctrl.errors['required']) errors.push('Please select an option');
 
     return errors;

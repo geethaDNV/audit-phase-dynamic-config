@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { StepService } from '../services/step.service';
 import { metadataRegistry } from '../services/metadata-registry.service';
+import { ValidationError } from '../services/validation.service';
 import prisma from '../config/database';
 
 /**
@@ -129,6 +130,20 @@ export class StepController {
       });
     } catch (error: any) {
       console.error('Error saving step data:', error);
+
+      // Handle ValidationError with field-specific errors
+      if (error instanceof ValidationError) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: error.message,
+            fieldErrors: error.fieldErrors,
+            errors: error.errors,
+          },
+        });
+        return;
+      }
 
       if (error.message.includes('not found') || error.message.includes('does not exist')) {
         res.status(404).json({

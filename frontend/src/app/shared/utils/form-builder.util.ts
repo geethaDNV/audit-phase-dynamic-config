@@ -73,8 +73,10 @@ export class FormBuilderUtil {
       return [];
     }
 
-    if (field.arrayItemType === 'object' && field.arraySchema) {
-      return initialValue.map(item => this.buildFormGroup(fb, field.arraySchema!, item));
+    const arrayFields = this.getArrayItemFields(field);
+    
+    if (field.arrayItemType === 'object' && arrayFields) {
+      return initialValue.map(item => this.buildFormGroup(fb, arrayFields, item));
     } else {
       return initialValue.map(item => fb.control(item));
     }
@@ -117,10 +119,20 @@ export class FormBuilderUtil {
   }
 
   static createArrayItem(fb: FormBuilder, field: FieldDefinition): FormControl | FormGroup {
-    if (field.arrayItemType === 'object' && field.arraySchema) {
-      return this.buildFormGroup(fb, field.arraySchema);
+    const arrayFields = this.getArrayItemFields(field);
+    
+    if (field.arrayItemType === 'object' && arrayFields) {
+      return this.buildFormGroup(fb, arrayFields);
     } else {
       return fb.control('');
     }
+  }
+
+  private static getArrayItemFields(field: FieldDefinition): FieldDefinition[] | null {
+    // Support both arraySchema (flat array) and arrayItemSchema.fields (nested)
+    if (field.arrayItemSchema && 'fields' in field.arrayItemSchema) {
+      return field.arrayItemSchema.fields;
+    }
+    return field.arraySchema || null;
   }
 }

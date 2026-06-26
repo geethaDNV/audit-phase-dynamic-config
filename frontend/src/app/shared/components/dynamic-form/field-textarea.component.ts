@@ -62,6 +62,11 @@ export class FieldTextareaComponent {
     
     if (!ctrl.errors) return errors;
 
+    // Server-side errors take precedence
+    if (ctrl.errors['serverError']) {
+      errors.push(ctrl.errors['serverError']);
+    }
+
     if (ctrl.errors['required']) errors.push('This field is required');
     if (ctrl.errors['minlength']) {
       errors.push(`Minimum length is ${ctrl.errors['minlength'].requiredLength} characters`);

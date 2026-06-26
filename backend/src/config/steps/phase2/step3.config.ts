@@ -9,172 +9,111 @@ export const Phase2Step3Config: StepConfig = {
 
   formSchema: {
     layout: 'vertical',
-    submitLabel: 'Save Finding',
+    submitLabel: 'Save Findings',
     fields: [
       {
-        name: 'title',
-        label: 'Finding Title',
-        type: 'text',
-        required: true,
-        validation: {
-          required: true,
-          minLength: 5,
-          maxLength: 200,
-          message: 'Finding title must be between 5 and 200 characters'
-        }
-      },
-      {
-        name: 'description',
-        label: 'Description',
-        type: 'textarea',
-        required: true,
-        validation: {
-          required: true,
-          minLength: 20,
-          message: 'Description must be at least 20 characters'
-        }
-      },
-      {
-        name: 'severity',
-        label: 'Severity',
-        type: 'select',
-        required: true,
-        options: [
-          { value: 'Low', label: 'Low' },
-          { value: 'Medium', label: 'Medium' },
-          { value: 'High', label: 'High' },
-          { value: 'Critical', label: 'Critical' }
-        ],
-        validation: {
-          required: true,
-          message: 'Severity level is required'
-        }
-      },
-      {
-        name: 'category',
-        label: 'Category',
-        type: 'select',
-        required: true,
-        options: [
-          { value: 'Financial', label: 'Financial' },
-          { value: 'Compliance', label: 'Compliance' },
-          { value: 'Operational', label: 'Operational' },
-          { value: 'Technical', label: 'Technical' },
-          { value: 'Governance', label: 'Governance' }
-        ],
-        validation: {
-          required: true,
-          message: 'Category is required'
-        }
-      },
-      {
-        name: 'status',
-        label: 'Status',
-        type: 'select',
-        required: true,
-        options: [
-          { value: 'Open', label: 'Open' },
-          { value: 'In Progress', label: 'In Progress' },
-          { value: 'Resolved', label: 'Resolved' },
-          { value: 'Closed', label: 'Closed' }
-        ],
-        validation: {
-          required: true,
-          message: 'Status is required'
-        }
-      },
-      {
-        name: 'evidence',
-        label: 'Supporting Evidence',
+        name: 'items',
+        label: 'Audit Findings',
         type: 'array',
         required: false,
+        arrayItemType: 'object',
+        validation: {
+          maxItems: 100,
+          message: 'Maximum 100 findings allowed per audit',
+        },
         arrayItemSchema: {
           fields: [
             {
-              name: 'description',
-              label: 'Evidence Description',
+              name: 'title',
+              label: 'Finding Title',
               type: 'text',
               required: true,
               validation: {
                 required: true,
                 minLength: 5,
-                message: 'Evidence description must be at least 5 characters'
+                maxLength: 200,
+                message: 'Finding title must be between 5 and 200 characters'
               }
             },
-            {
-              name: 'source',
-              label: 'Source',
-              type: 'text',
-              required: true,
-              validation: {
-                required: true,
-                message: 'Evidence source is required'
-              }
-            },
-            {
-              name: 'documentPath',
-              label: 'Document Path',
-              type: 'text',
-              required: false,
-              validation: {
-                pattern: '^(/documents/|http)',
-                message: 'Document path must start with /documents/ or http'
-              }
-            }
-          ]
-        }
-      },
-      {
-        name: 'recommendations',
-        label: 'Recommendations',
-        type: 'array',
-        required: false,
-        arrayItemSchema: {
-          fields: [
             {
               name: 'description',
-              label: 'Recommendation',
+              label: 'Description',
               type: 'textarea',
               required: true,
               validation: {
                 required: true,
-                minLength: 10,
-                message: 'Recommendation must be at least 10 characters'
+                minLength: 20,
+                message: 'Description must be at least 20 characters'
+              },
+              displayConfig: {
+                rows: 4,
+                placeholder: 'Describe the finding in detail...'
               }
             },
             {
-              name: 'priority',
-              label: 'Priority',
+              name: 'severity',
+              label: 'Severity',
               type: 'select',
               required: true,
-              options: [
-                { value: 'Low', label: 'Low' },
-                { value: 'Medium', label: 'Medium' },
-                { value: 'High', label: 'High' },
-                { value: 'Critical', label: 'Critical' }
-              ],
+              options: ['Low', 'Medium', 'High', 'Critical'],
               validation: {
                 required: true,
-                message: 'Priority is required'
+                enum: ['Low', 'Medium', 'High', 'Critical'],
+                message: 'Severity level is required'
+              },
+              displayConfig: {
+                placeholder: 'Select severity'
               }
             },
             {
-              name: 'targetDate',
-              label: 'Target Completion Date',
-              type: 'date',
-              required: false
+              name: 'category',
+              label: 'Category',
+              type: 'select',
+              required: true,
+              options: ['Financial', 'Compliance', 'Operational', 'Technical', 'Governance'],
+              validation: {
+                required: true,
+                enum: ['Financial', 'Compliance', 'Operational', 'Technical', 'Governance'],
+                message: 'Category is required'
+              },
+              displayConfig: {
+                placeholder: 'Select category'
+              }
+            },
+            {
+              name: 'status',
+              label: 'Status',
+              type: 'select',
+              required: true,
+              options: ['Open', 'In Progress', 'Resolved', 'Closed'],
+              validation: {
+                required: true,
+                enum: ['Open', 'In Progress', 'Resolved', 'Closed'],
+                message: 'Status is required'
+              },
+              displayConfig: {
+                placeholder: 'Select status'
+              }
+            },
+            {
+              name: 'assignedTo',
+              label: 'Assigned To',
+              type: 'text',
+              required: false,
+              validation: {
+                maxLength: 100,
+                message: 'Assigned to cannot exceed 100 characters'
+              },
+              displayConfig: {
+                placeholder: 'Enter assignee name'
+              }
             }
           ]
-        }
-      },
-      {
-        name: 'assignedTo',
-        label: 'Assigned To',
-        type: 'text',
-        required: false,
-        validation: {
-          maxLength: 100,
-          message: 'Assigned to cannot exceed 100 characters'
+        },
+        displayConfig: {
+          addButtonLabel: 'Add Finding',
+          removeButtonLabel: 'Remove',
+          emptyMessage: 'No findings recorded yet. Click "Add Finding" to get started.',
         }
       }
     ]
@@ -188,6 +127,9 @@ export const Phase2Step3Config: StepConfig = {
     save: {
       strategy: 'complex-transaction',
       transactional: true,
+      model: 'finding',
+      bulkOperation: true,
+      deleteExisting: true,
       repositoryClass: 'FindingRepository'
     }
   },

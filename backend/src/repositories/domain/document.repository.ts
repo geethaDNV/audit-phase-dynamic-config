@@ -17,23 +17,56 @@ export class DocumentRepository extends BaseStepRepository {
 
   /**
    * Implement abstract save method
+   * Handles bulk save operations for document arrays
    */
-  async save(data: any, context: StepContext): Promise<StepDataPayload> {
-    return this.saveWithConditions(context.auditId, data);
+  async save(data: any, context: StepContext, transaction?: any): Promise<StepDataPayload> {
+    const prismaClient = transaction || this.prisma;
+    const auditId = context.auditId;
+
+    // Extract items array from payload
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    // Delete all existing documents for this audit
+    await prismaClient.document.deleteMany({
+      where: { auditId }
+    });
+
+    // If no items provided, return empty array
+    if (items.length === 0) {
+      return { items: [] };
+    }
+
+    // Create all new documents with validation and processing
+    const createdDocuments = await Promise.all(
+      items.map((item: any) => this.createDocumentWithValidation(auditId, item, prismaClient))
+    );
+
+    return { items: createdDocuments };
   }
 
   /**
-   * Conditional save for documents with validation based on document type
+   * Create a single document with conditional validation
    * Demonstrates Pattern 5: Conditional Save Strategy
    */
-  async saveWithConditions(auditId: number, data: any): Promise<any> {
+  private async createDocumentWithValidation(
+    auditId: number, 
+    data: any, 
+    prismaClient: any
+  ): Promise<any> {
     const { documentType, filePath, isConfidential, tags, ...rest } = data;
 
     // Validate file extension based on document type
     this.validateFileType(documentType, filePath);
 
-    // Parse tags if provided
-    const parsedTags = tags ? tags.split(',').map((tag: string) => tag.trim()) : [];
+    // Parse tags if provided - handle both string and array formats
+    let parsedTags: string[] = [];
+    if (tags) {
+      if (Array.isArray(tags)) {
+        parsedTags = tags.filter(Boolean);
+      } else if (typeof tags === 'string' && tags.trim()) {
+        parsedTags = tags.split(',').map((tag: string) => tag.trim()).filter(Boolean);
+      }
+    }
 
     // Extract fileName and fileType from filePath
     const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || '';
@@ -54,7 +87,7 @@ export class DocumentRepository extends BaseStepRepository {
     }
 
     // Create document with conditional metadata
-    const document = await this.prisma.document.create({
+    const document = await prismaClient.document.create({
       data: {
         auditId,
         title: rest.title,

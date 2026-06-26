@@ -130,9 +130,24 @@ export class GenericStepRepository extends BaseStepRepository {
     Object.keys(saveData).forEach((key) => {
       if (saveData[key] === undefined) {
         delete saveData[key];
+      } else if (saveData[key] === null || saveData[key] === '') {
+        // For optional fields, convert empty strings to null or delete them
+        if (this.isDateField(key)) {
+          // For date fields, remove empty strings to avoid "Invalid Date" errors
+          delete saveData[key];
+        } else if (saveData[key] === '') {
+          // Keep empty strings for text fields (they might be intentional)
+          // But ensure they're actually defined in the schema
+        }
       } else if (typeof saveData[key] === 'string' && this.isDateField(key)) {
-        // Convert ISO date strings to Date objects
-        saveData[key] = new Date(saveData[key]);
+        // Convert non-empty ISO date strings to Date objects
+        const dateValue = new Date(saveData[key]);
+        if (isNaN(dateValue.getTime())) {
+          // If the date is invalid, remove it instead of passing invalid Date
+          delete saveData[key];
+        } else {
+          saveData[key] = dateValue;
+        }
       }
     });
 
@@ -146,7 +161,18 @@ export class GenericStepRepository extends BaseStepRepository {
       return result;
     } catch (error: any) {
       console.error(`Error upserting ${model}:`, error);
-      throw new Error(`Failed to save ${model}: ${error.message}`);
+      
+      // Extract user-friendly error message from Prisma errors
+      let errorMessage = error.message;
+      if (error.message && error.message.includes('Invalid')) {
+        // Prisma validation errors - extract the relevant part
+        const match = error.message.match(/Invalid.*?Expected .*/);
+        if (match) {
+          errorMessage = match[0];
+        }
+      }
+      
+      throw new Error(`Failed to save ${model.toLowerCase()}: ${errorMessage}`);
     }
   }
 

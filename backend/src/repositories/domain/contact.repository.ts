@@ -89,6 +89,24 @@ export class ContactRepository {
   }
 
   /**
+   * Get all contacts in the database
+   * Used for selection dropdowns in audit setup
+   */
+  async getAllContacts(): Promise<Contact[]> {
+    return await prisma.contact.findMany({
+      orderBy: [{ name: 'asc' }],
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Validate that a contact belongs to a specific client
    */
   async validateOwnership(contactId: number, clientId: number): Promise<boolean> {

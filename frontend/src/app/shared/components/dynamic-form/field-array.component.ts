@@ -11,6 +11,7 @@ import { FormBuilderUtil } from '../../utils/form-builder.util';
 import { FieldTextComponent } from './field-text.component';
 import { FieldSelectComponent } from './field-select.component';
 import { FieldTextareaComponent } from './field-textarea.component';
+import { FieldCheckboxComponent } from './field-checkbox.component';
 
 @Component({
   selector: 'app-field-array',
@@ -20,7 +21,8 @@ import { FieldTextareaComponent } from './field-textarea.component';
     ReactiveFormsModule,
     FieldTextComponent,
     FieldSelectComponent,
-    FieldTextareaComponent
+    FieldTextareaComponent,
+    FieldCheckboxComponent
   ],
   template: `
     <div class="mb-6">
@@ -60,9 +62,9 @@ import { FieldTextareaComponent } from './field-textarea.component';
               </button>
             </div>
 
-            @if (field().arrayItemType === 'object' && field().arraySchema) {
+            @if (field().arrayItemType === 'object' && (field().arraySchema || field().arrayItemSchema)) {
               <!-- Object array items -->
-              @for (subField of field().arraySchema; track subField.name) {
+              @for (subField of getArrayItemFields(); track subField.name) {
                 @if (subField.type === 'text' || subField.type === 'email' || subField.type === 'number') {
                   <app-field-text
                     [field]="subField"
@@ -75,6 +77,11 @@ import { FieldTextareaComponent } from './field-textarea.component';
                   />
                 } @else if (subField.type === 'textarea') {
                   <app-field-textarea
+                    [field]="subField"
+                    [control]="getControl(item, subField.name)"
+                  />
+                } @else if (subField.type === 'checkbox') {
+                  <app-field-checkbox
                     [field]="subField"
                     [control]="getControl(item, subField.name)"
                   />
@@ -146,11 +153,25 @@ export class FieldArrayComponent {
     return item;
   }
 
+  getArrayItemFields(): FieldDefinition[] {
+    // Support both arraySchema (flat array) and arrayItemSchema.fields (nested)
+    const field = this.field();
+    if (field.arrayItemSchema && 'fields' in field.arrayItemSchema) {
+      return field.arrayItemSchema.fields;
+    }
+    return field.arraySchema || [];
+  }
+
   getErrors(): string[] {
     const errors: string[] = [];
     const arr = this.formArray();
     
     if (!arr.errors) return errors;
+
+    // Server-side errors take precedence
+    if (arr.errors['serverError']) {
+      errors.push(arr.errors['serverError']);
+    }
 
     if (arr.errors['minItems']) {
       errors.push(`Minimum ${arr.errors['minItems'].required} items required`);

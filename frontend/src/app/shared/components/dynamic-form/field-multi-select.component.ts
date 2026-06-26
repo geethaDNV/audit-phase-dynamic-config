@@ -25,8 +25,8 @@ import { FieldDefinition } from '../../../features/audit/models/step-config.mode
         [id]="field().name"
         [formControl]="control()"
         multiple
-        [size]="Math.max(3, Math.min(8, getOptions().length))"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        [size]="Math.max(5, Math.min(10, getOptions().length))"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
         [class.border-red-500]="control().invalid && control().touched"
       >
         @for (option of getOptions(); track option.value) {
@@ -62,13 +62,17 @@ export class FieldMultiSelectComponent {
 
   getOptions(): { label: string; value: any }[] {
     const options = this.field().options || [];
+    console.log(`[FieldMultiSelect] ${this.field().name} - options:`, options);
+    console.log(`[FieldMultiSelect] ${this.field().name} - optionsSource:`, this.field().optionsSource);
     
     // If options are strings, convert to objects
     if (options.length > 0 && typeof options[0] === 'string') {
       return (options as string[]).map(opt => ({ label: opt, value: opt }));
     }
     
-    return options as { label: string; value: any }[];
+    const result = options as { label: string; value: any }[];
+    console.log(`[FieldMultiSelect] ${this.field().name} - returning ${result.length} options:`, result);
+    return result;
   }
 
   getErrors(): string[] {
@@ -76,6 +80,11 @@ export class FieldMultiSelectComponent {
     const ctrl = this.control();
     
     if (!ctrl.errors) return errors;
+    
+    // Server-side errors take precedence
+    if (ctrl.errors['serverError']) {
+      errors.push(ctrl.errors['serverError']);
+    }
     
     if (ctrl.errors['required']) errors.push('Please select at least one option');
     if (ctrl.errors['minItems']) {
