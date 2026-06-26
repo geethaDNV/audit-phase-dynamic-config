@@ -10,9 +10,14 @@ import prisma from '../../config/database';
  * Pattern 2: Multi-source Compose
  * 
  * Fetches data from multiple sources:
- * - Client data with selected entity
- * - Entities (from Entity table)
- * - Contacts (from Contact table)
+ * - Client data with currently selected entity (for pre-selection)
+ * - ALL entities in the database (for dropdown options)
+ * - Contacts associated with this audit's client
+ * 
+ * Key Behavior:
+ * - Shows ALL entities across all clients (not filtered by current client)
+ * - Pre-selects the entity currently chosen for this audit (if any)
+ * - Allows audits to select any entity, enabling cross-client entity assignments
  * 
  * Save strategy:
  * - Update client's selected entity
@@ -30,12 +35,15 @@ export class Step2Repository extends BaseStepRepository {
 
   /**
    * Fetch composed data from multiple sources
-   * Returns client data, entities, and contacts for selection
+   * Returns:
+   * - selectedEntityId: Currently selected entity for this audit (for pre-selection)
+   * - entities: ALL available entities in the database (for dropdown options)
+   * - contacts: Contacts associated with this client's audit
    */
   async fetch(context: StepContext): Promise<StepDataPayload> {
     const { auditId } = context;
 
-    // Fetch client data with entities and contacts
+    // Fetch client data (to get current selection and contacts)
     const clientData = await this.clientRepository.getFullClientData(auditId);
 
     if (!clientData) {
@@ -46,11 +54,18 @@ export class Step2Repository extends BaseStepRepository {
       };
     }
 
+    // Fetch ALL entities from the database (not just those linked to this client)
+    // This allows users to select any entity during the audit
+    const allEntities = await this.entityRepository.getAllEntities();
+
     // Transform for frontend consumption
     return {
-      selectedEntityId: clientData.client.selectedEntityId,
+      selectedEntityId: clientData.client.selectedEntityId, // Pre-select current choice
+      selectedContacts: clientData.contacts
+        .filter((contact: Contact) => contact.isPrimary)
+        .map((contact: Contact) => contact.id), // Pre-select primary contacts
       clientName: clientData.client.name,
-      entities: clientData.entities.map((entity: Entity) => ({
+      entities: allEntities.map((entity: Entity) => ({
         id: entity.id,
         name: entity.name,
         type: entity.type,
@@ -78,19 +93,22 @@ export class Step2Repository extends BaseStepRepository {
     transaction?: unknown
   ): Promise<StepDataPayload> {
     const { auditId } = context;
-    const { selectedEntityId, contacts } = data;
+    const { selectedEntityId, selectedContacts } = data;
 
     const prismaClient = transaction || this.prisma;
 
-    // Validate entity belongs to client (custom validator will also check this)
+    // Update client's selected entity
+    // Note: We no longer validate entity ownership since users can select ANY entity
     if (selectedEntityId) {
-      const isValid = await this.entityRepository.validateEntityOwnership(
-        auditId,
-        selectedEntityId
-      );
+      // Verify the entity exists and is active
+      const entity = await this.entityRepository.findById(selectedEntityId);
+      
+      if (!entity) {
+        throw new Error('Selected entity not found');
+      }
 
-      if (!isValid) {
-        throw new Error('Selected entity does not belong to this client');
+      if (!entity.isActive) {
+        throw new Error('Selected entity is not active');
       }
 
       // Update client's selected entity
@@ -101,15 +119,44 @@ export class Step2Repository extends BaseStepRepository {
       );
     }
 
-    // Upsert contacts if provided
-    if (contacts && Array.isArray(contacts) && contacts.length > 0) {
-      await this.clientRepository.upsertContacts(auditId, contacts, prismaClient);
+    // Update contact primary flags based on selection
+    if (selectedContacts && Array.isArray(selectedContacts)) {
+      await this.updateContactSelection(auditId, selectedContacts, prismaClient);
     }
 
     return {
       success: true,
       selectedEntityId,
-      contactsUpdated: contacts?.length || 0,
+      contactsUpdated: selectedContacts?.length || 0,
     };
+  }
+
+  /**
+   * Update which contacts are marked as primary (selected) for this audit
+   */
+  private async updateContactSelection(
+    auditId: number,
+    selectedContactIds: number[],
+    prismaClient: any
+  ): Promise<void> {
+    // Get client
+    const client = await prismaClient.client.findUnique({
+      where: { auditId },
+      include: { contacts: true },
+    });
+
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    // Update all contacts: set isPrimary based on selection
+    const updatePromises = client.contacts.map((contact: Contact) => {
+      return prismaClient.contact.update({
+        where: { id: contact.id },
+        data: { isPrimary: selectedContactIds.includes(contact.id) },
+      });
+    });
+
+    await Promise.all(updatePromises);
   }
 }

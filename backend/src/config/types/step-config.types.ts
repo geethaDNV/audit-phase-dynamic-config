@@ -64,6 +64,11 @@ export interface FieldDefinition {
   required?: boolean;
   validation?: FieldValidation;
   options?: string[] | SelectOption[];
+  optionsSource?: {
+    dataPath: string;          // e.g., 'entities', 'contacts'
+    labelField: string;        // e.g., 'name'
+    valueField: string;        // e.g., 'id'
+  };
   arrayItemType?: 'text' | 'object';
   arrayItemSchema?: {
     fields: FieldDefinition[];

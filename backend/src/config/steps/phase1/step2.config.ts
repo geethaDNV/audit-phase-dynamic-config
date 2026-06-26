@@ -23,29 +23,32 @@ export const Phase1Step2Config: StepConfig = {
         name: 'selectedEntityId',
         label: 'Primary Entity',
         type: 'select',
-        required: true,
+        placeholder: 'Select the primary entity for this audit',
+        helpText: 'Choose the main entity that will be audited',
         validation: {
           required: true,
-          message: 'Please select a primary entity',
         },
-        // Options will be populated from fetched entities
-        displayConfig: {
-          placeholder: 'Select the primary entity for this audit',
-          helpText: 'Choose the main entity that will be audited',
+        // Options populated dynamically from fetched entities
+        optionsSource: {
+          dataPath: 'entities',
+          labelField: 'name',
+          valueField: 'id',
         },
       },
       {
         name: 'selectedContacts',
         label: 'Key Contacts',
         type: 'multi-select',
-        required: false,
+        placeholder: 'Select key contacts for this audit',
+        helpText: 'Choose the primary contacts involved in this audit',
         validation: {
           minItems: 1,
-          message: 'Select at least one contact',
         },
-        displayConfig: {
-          placeholder: 'Select key contacts for this audit',
-          helpText: 'Choose the primary contacts involved in this audit',
+        // Options populated dynamically from fetched contacts
+        optionsSource: {
+          dataPath: 'contacts',
+          labelField: 'name',
+          valueField: 'id',
         },
       },
     ],
@@ -81,26 +84,9 @@ export const Phase1Step2Config: StepConfig = {
           field: 'selectedEntityId',
           message: 'Primary entity selection is required',
         },
-        {
-          type: 'custom',
-          field: 'selectedEntityId',
-          message: 'Selected entity must belong to this audit client',
-          validatorName: 'validateEntityBelongsToClient',
-        },
       ],
     },
   },
-
-  businessRules: [
-    {
-      name: 'entity-ownership',
-      description: 'Selected entity must belong to the audit client',
-      type: 'validation',
-      config: {
-        checkOwnership: true,
-      },
-    },
-  ],
 
   navigation: {
     previous: 'phase1-step1',

@@ -164,6 +164,26 @@ export class EntityRepository extends BaseStepRepository {
   }
 
   /**
+   * Get ALL entities in the database
+   * Used by: Step 2 to show all available entities for selection
+   */
+  async getAllEntities(): Promise<Entity[]> {
+    try {
+      const entities = await this.prisma.entity.findMany({
+        where: {
+          isActive: true, // Only active entities
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      return entities;
+    } catch (error) {
+      console.error('Error fetching all entities:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get selected entity for an audit
    */
   async getSelectedEntity(auditId: number): Promise<Entity | null> {

@@ -161,6 +161,36 @@ async function main() {
     },
   });
 
+  // Add additional entities to demonstrate cross-client entity selection
+  await prisma.entity.createMany({
+    data: [
+      {
+        clientId: client1.id,
+        name: 'Acme International Trading Ltd',
+        type: 'partnership',
+        description: 'International trading division',
+        registrationNumber: 'P-2021-11111',
+        isActive: true,
+      },
+      {
+        clientId: client2.id,
+        name: 'TechStart Payment Solutions LLC',
+        type: 'llc',
+        description: 'Payment processing subsidiary',
+        registrationNumber: 'L-2025-22222',
+        isActive: true,
+      },
+      {
+        clientId: client1.id,
+        name: 'Acme Real Estate Holdings',
+        type: 'llc',
+        description: 'Property management division',
+        registrationNumber: 'L-2019-33333',
+        isActive: true,
+      },
+    ],
+  });
+
   // Update client with selected entity
   await prisma.client.update({
     where: { id: client1.id },
