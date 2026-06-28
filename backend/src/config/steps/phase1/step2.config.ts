@@ -11,11 +11,25 @@ import { StepConfig } from '../../types/step-config.types';
  * - Saving selection back to parent record (Client)
  */
 export const Phase1Step2Config: StepConfig = {
-  stepKey: 'phase1-step2',
+  stepKey: '1-2',
   phaseId: 1,
   stepId: 2,
   stepName: 'Entity & Contact Selection',
   description: 'Select primary entity and contacts associated with this audit',
+  
+  // ✅ DEPENDENCIES: This step needs client data from Step 1-1
+  dependencies: {
+    // Step 1-1 (Client) must be completed first
+    requiredSteps: ['1-1'],
+    
+    // Load client data for validation
+    dataReferences: {
+      '1-1': {
+        fields: ['id', 'name', 'email'],
+        strategy: 'preload'  // Always small (1 record)
+      }
+    }
+  },
 
   formSchema: {
     fields: [
@@ -89,7 +103,7 @@ export const Phase1Step2Config: StepConfig = {
   },
 
   navigation: {
-    previous: 'phase1-step1',
-    next: 'phase1-step3',
+    previous: '1-1',
+    next: '1-3',
   },
 };

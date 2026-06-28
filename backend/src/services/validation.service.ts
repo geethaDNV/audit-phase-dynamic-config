@@ -1,5 +1,14 @@
-import { FormSchema, FieldDefinition, BusinessRule } from '../config/types/step-config.types';
+import { PrismaClient } from '@prisma/client';
+import {
+  FormSchema,
+  FieldDefinition,
+  BusinessRule,
+  StepContext,
+  StepDependencies,
+  ValidationContext
+} from '../config/types/step-config.types';
 import { ValidatorRegistry } from '../validators/validator-registry';
+import { ValidationContextService } from './validation-context.service';
 
 /**
  * Validation Service
@@ -12,25 +21,45 @@ import { ValidatorRegistry } from '../validators/validator-registry';
  * 
  * This is the missing critical piece that ensures data integrity
  * before it reaches the database layer.
+ * 
+ * PERFORMANCE: Uses batched dependency loading to eliminate N+1 queries
  */
 export class ValidationService {
   private validatorRegistry: ValidatorRegistry;
+  private contextService: ValidationContextService;
 
-  constructor() {
+  constructor(prisma: PrismaClient) {
     this.validatorRegistry = new ValidatorRegistry();
+    this.contextService = new ValidationContextService(prisma);
   }
 
   /**
-   * Main validation entry point
+   * Main validation entry point - NOW WITH BATCHED DEPENDENCY LOADING
+   * 
    * Validates payload against form schema and business rules
    * 
+   * @param payload - Data to validate
+   * @param formSchema - Form schema with field definitions
+   * @param context - Step context (auditId, phaseId, stepId)
+   * @param dependencies - Step dependencies for batched loading
    * @throws Error with validation messages if validation fails
    */
-  async validate(payload: any, formSchema: FormSchema, context?: any): Promise<void> {
+  async validate(
+    payload: any,
+    formSchema: FormSchema,
+    context: StepContext,
+    dependencies?: StepDependencies
+  ): Promise<void> {
+    // 1. Build validation context with ALL dependency data (single batch query)
+    const validationContext = await this.contextService.buildValidationContext(
+      context,
+      dependencies
+    );
+    
     const fieldErrors: Record<string, string[]> = {};
     const generalErrors: string[] = [];
 
-    // 1. Field-level validation
+    // 2. Field-level validation (unchanged)
     for (const field of formSchema.fields) {
       const errors = this.validateField(field, payload[field.name]);
       if (errors.length > 0) {
@@ -38,23 +67,21 @@ export class ValidationService {
       }
     }
 
-    // 2. Business rules validation (conditional, cross-step, cross-field)
+    // 3. Business rules validation - NOW with pre-loaded context
     if (formSchema.businessRules && formSchema.businessRules.length > 0) {
       const ruleErrors = await this.validateBusinessRules(
         payload,
         formSchema.businessRules,
-        context
+        validationContext  // ← Contains all dependency data!
       );
       generalErrors.push(...ruleErrors);
     }
 
-    // If any errors, throw validation exception
+    // 4. Check errors
     if (Object.keys(fieldErrors).length > 0 || generalErrors.length > 0) {
-      // If we have field-specific errors, use the new format
       if (Object.keys(fieldErrors).length > 0) {
         throw new ValidationError(fieldErrors);
       } else {
-        // Otherwise use general errors
         throw new ValidationError(generalErrors);
       }
     }
@@ -177,11 +204,12 @@ export class ValidationService {
 
   /**
    * Validate business rules
+   * Updated to use ValidationContext instead of generic context
    */
   private async validateBusinessRules(
     payload: any,
     rules: BusinessRule[],
-    context?: any
+    context: ValidationContext  // ← Changed from any to ValidationContext
   ): Promise<string[]> {
     const errors: string[] = [];
 
@@ -197,7 +225,7 @@ export class ValidationService {
             const error = await this.validatorRegistry.validateAsync(
               rule.validatorClass,
               payload,
-              context
+              context  // ← Now includes dependencyData!
             );
             if (error) {
               errors.push(error);

@@ -1,11 +1,28 @@
 import { StepConfig } from '../../types/step-config.types';
 
 export const Phase1Step3Config: StepConfig = {
-  stepKey: 'phase1-step3',
+  stepKey: '1-3',
   phaseId: 1,
   stepId: 3,
   stepName: 'Risk Assessment',
   description: 'Aggregate and analyze risk data from multiple sources',
+
+  // ✅ DEPENDENCIES: Risk assessment needs client and entity data
+  dependencies: {
+    requiredSteps: ['1-1', '1-2'],
+    dataReferences: {
+      // Client: Always small (1 record)
+      '1-1': {
+        fields: ['id', 'name', 'industry'],
+        strategy: 'preload'
+      },
+      // Entities: Usually small (< 20 entities)
+      '1-2': {
+        fields: ['selectedEntityId', 'entities'],
+        strategy: 'preload'
+      }
+    }
+  },
 
   formSchema: {
     layout: 'vertical',

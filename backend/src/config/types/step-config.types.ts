@@ -30,6 +30,7 @@ export interface StepConfig {
     type: string;
     config?: Record<string, any>;
   }>;
+  dependencies?: StepDependencies;  // NEW
   navigation?: {
     previous?: string;
     next?: string;
@@ -260,6 +261,71 @@ export interface StepContext {
   phaseId: number;
   stepId: number;
   userId?: string;
+}
+
+/**
+ * NEW: Dependency configuration
+ */
+export interface StepDependencies {
+  // Steps that MUST be completed before this step can start
+  requiredSteps?: string[];  // ["1-1", "1-2", "1-3"]
+  
+  // Steps that should be loaded for validation (but not required to be completed)
+  optionalSteps?: string[];  // ["2-1", "2-2"]
+  
+  // Fields referenced from other steps (for validation context loading)
+  dataReferences?: {
+    [stepKey: string]: DependencyDataConfig;
+  };
+  
+  // Conditional logic to determine if this step should be skipped
+  skipConditions?: {
+    condition: string;  // "step['2-3'].riskLevel === 'Low'"
+    message?: string;
+  }[];
+  
+  // Steps that depend on THIS step (auto-computed, don't set manually)
+  dependents?: string[];
+}
+
+/**
+ * Configuration for how to load dependency data
+ */
+export interface DependencyDataConfig {
+  // Fields to load from this step
+  fields?: string[];  // ['id', 'name', 'email']
+  
+  // Validation strategy
+  strategy?: 'preload' | 'auto' | 'direct-db' | 'foreign-key';
+  
+  // Threshold for auto strategy (pre-load if count < threshold, else direct DB)
+  threshold?: number;  // Default: 100
+  
+  // For backward compatibility, allow string array
+  // e.g., '2-1': ['id', 'name'] becomes { fields: ['id', 'name'], strategy: 'auto' }
+}
+
+/**
+ * NEW: Enhanced context with dependency data
+ */
+export interface ValidationContext extends StepContext {
+  // Pre-loaded data from dependent steps (eliminates N+1 queries)
+  dependencyData: Map<string, StepDataPayload>;  // Map<"1-1", {...data}>
+  
+  // Audit step statuses for checking completion
+  stepStatuses: Map<string, string>;  // Map<"1-1", "completed">
+  
+  // Strategy metadata for each dependency (how to validate)
+  dependencyStrategies: Map<string, DependencyStrategy>;  // Map<"2-1", {strategy: 'direct-db', ...}>
+}
+
+/**
+ * Strategy information for a loaded dependency
+ */
+export interface DependencyStrategy {
+  strategy: 'preloaded' | 'direct-db' | 'foreign-key';
+  auditId?: number;  // For direct-db queries
+  count?: number;    // Number of records (for debugging)
 }
 
 /**

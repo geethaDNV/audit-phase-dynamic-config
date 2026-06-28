@@ -1,11 +1,23 @@
 import { StepConfig } from '../../types/step-config.types';
 
 export const Phase2Step1Config: StepConfig = {
-  stepKey: 'phase2-step1',
+  stepKey: '2-1',
   phaseId: 2,
   stepId: 1,
   stepName: 'Document Upload',
   description: 'Upload and categorize audit documents with conditional validation',
+
+  // ✅ DEPENDENCIES: Documents must belong to a client
+  dependencies: {
+    requiredSteps: ['1-1'],
+    dataReferences: {
+      // Client: Always small (1 record)
+      '1-1': {
+        fields: ['id', 'name'],
+        strategy: 'preload'
+      }
+    }
+  },
 
   formSchema: {
     layout: 'vertical',

@@ -33,6 +33,7 @@ model Audit {
   findings        Finding[]
   riskAssessment  RiskAssessment?
   stepData        StepData[]
+  stepStatuses    AuditStepStatus[]
 
   @@index([status])
   @@index([createdAt])
@@ -195,6 +196,9 @@ model Document {
   evidenceLinks  Evidence[]
 
   @@index([auditId])
+  @@index([auditId, documentType])
+  @@index([uploadedAt])
+  @@index([isConfidential])
   @@index([fileType])
   @@index([documentType])
 }
@@ -239,6 +243,9 @@ model Finding {
   auditTrail      FindingAuditTrail[]
 
   @@index([auditId])
+  @@index([auditId, severity])
+  @@index([auditId, status])
+  @@index([createdAt])
   @@index([severity])
   @@index([status])
   @@index([category])
@@ -303,29 +310,88 @@ model FindingAuditTrail {
 // METADATA STORAGE
 // ============================================================================
 
-model StepConfiguration {
-  id          Int      @id @default(autoincrement())
-  phaseId     Int
-  stepId      Int
-  stepName    String   @db.VarChar(100)
-  description String?  @db.Text
-  formSchema  Json     // Serialized FormSchema
-  dataConfig  Json     // Serialized DataConfig
-  isActive    Boolean  @default(true)
-  version     Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// NEW: Phase configuration - fully dynamic phases
+model PhaseConfiguration {
+  id           Int      @id @default(autoincrement())
+  phaseId      Int      @unique
+  phaseName    String   @db.VarChar(100)
+  phaseKey     String   @unique // "client-assessment", "audit-execution"
+  description  String?  @db.Text
+  displayOrder Int      // For ordering phases in UI
+  icon         String?  // Icon name or emoji for UI
+  color        String?  // Color code for UI theming
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  @@unique([phaseId, stepId])
+  @@index([displayOrder])
   @@index([isActive])
 }
 
+model StepConfiguration {
+  id            Int      @id @default(autoincrement())
+  stepKey       String   @unique // "1-1", "2-5"
+  phaseId       Int
+  stepId        Int
+  stepName      String   @db.VarChar(100)
+  description   String?  @db.Text
+  formSchema    Json     // Serialized FormSchema
+  dataConfig    Json     // Serialized DataConfig
+  businessRules Json?    // Business rules
+  dependencies  Json?    // NEW: Dependency configuration
+  isActive      Boolean  @default(true)
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([phaseId, stepId])
+  @@index([phaseId])
+  @@index([stepKey])
+  @@index([isActive])
+  @@index([version])
+}
+
+// NEW: Track step completion and dependencies at runtime
+model AuditStepStatus {
+  id            Int       @id @default(autoincrement())
+  auditId       Int
+  phaseId       Int
+  stepId        Int
+  stepKey       String    // "1-1"
+  status        String    @default("pending") // pending, in-progress, completed, skipped, blocked
+  startedAt     DateTime?
+  completedAt   DateTime?
+  blockedBy     String[]  @default([]) // Array of stepKeys: ["1-1", "1-2"]
+  blockedReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, phaseId, stepId])
+  @@index([auditId])
+  @@index([auditId, status])
+  @@index([stepKey])
+  @@index([auditId, phaseId])
+}
+
+// StepData: Metadata and audit trail ONLY (not a duplicate of domain data)
+// 
+// ARCHITECTURE CHANGE: Domain tables (Client, Document, etc.) are the single source of truth.
+// StepData now stores ONLY:
+// - Metadata: submission timestamps, user info, validation status
+// - Audit trail: what was submitted vs. what was saved
+// - Draft state: incomplete/unsaved form data
+// - UI state: for steps without domain models
+// 
+// DO NOT use for cross-step validation - query domain tables directly instead
 model StepData {
   id        Int      @id @default(autoincrement())
   auditId   Int
   phaseId   Int
   stepId    Int
-  data      Json     // Generic JSON storage for step data
+  stepKey   String   // Denormalized for faster lookups
+  data      Json?    // Optional: metadata, not actual form data
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -334,4 +400,8 @@ model StepData {
 
   @@unique([auditId, phaseId, stepId])
   @@index([auditId])
+  @@index([auditId, phaseId])
+  @@index([stepKey])
+  @@index([updatedAt])
+  @@index([auditId, stepKey])
 }

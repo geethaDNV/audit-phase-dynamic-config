@@ -11,11 +11,30 @@ import { StepConfig } from '../../types/step-config.types';
  * - Array validation (min/max items)
  */
 export const Phase2Step2Config: StepConfig = {
-  stepKey: 'phase2-step2',
+  stepKey: '2-2',
   phaseId: 2,
   stepId: 2,
   stepName: 'Checklist Items',
   description: 'Define and manage checklist items for this audit',
+
+  // ✅ DEPENDENCIES: Checklist items need client context
+  dependencies: {
+    requiredSteps: ['1-1'],
+    optionalSteps: ['2-1'],  // Nice to reference documents, but not required
+    dataReferences: {
+      // Client: Always small (1 record)
+      '1-1': {
+        fields: ['id', 'name'],
+        strategy: 'preload'
+      },
+      // Documents: Variable size, use adaptive strategy
+      '2-1': {
+        fields: ['id', 'title'],
+        strategy: 'auto',
+        threshold: 100
+      }
+    }
+  },
 
   formSchema: {
     fields: [
@@ -163,7 +182,7 @@ export const Phase2Step2Config: StepConfig = {
   ],
 
   navigation: {
-    previous: 'phase2-step1',
-    next: 'phase2-step3',
+    previous: '2-1',
+    next: '2-3',
   },
 };

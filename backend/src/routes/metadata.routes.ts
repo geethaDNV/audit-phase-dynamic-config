@@ -27,4 +27,16 @@ router.get(
   (req, res) => metadataController.getPhaseSteps(req, res)
 );
 
+// Get audit progress (all steps with their statuses)
+router.get(
+  '/audits/:auditId/progress',
+  (req, res) => metadataController.getAuditProgress(req, res)
+);
+
+// Update step status
+router.post(
+  '/audits/:auditId/steps/:stepKey/status',
+  (req, res) => metadataController.updateStepStatus(req, res)
+);
+
 export default router;

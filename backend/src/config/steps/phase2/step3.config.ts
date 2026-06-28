@@ -1,11 +1,33 @@
 import { StepConfig } from '../../types/step-config.types';
 
 export const Phase2Step3Config: StepConfig = {
-  stepKey: 'phase2-step3',
+  stepKey: '2-3',
   phaseId: 2,
   stepId: 3,
   stepName: 'Audit Findings',
   description: 'Record findings with supporting evidence and recommendations in a single transaction',
+  
+  // ✅ DEPENDENCIES: Tells the system what data this step needs from other steps
+  dependencies: {
+    // These steps MUST be completed before user can access this step
+    requiredSteps: ['1-1', '2-1'],
+    
+    // Load data from these steps for validation (HYBRID STRATEGY)
+    dataReferences: {
+      // Client: Always small (1 record), pre-load all fields
+      '1-1': {
+        fields: ['name', 'email', 'industry'],
+        strategy: 'preload'  // Always pre-load
+      },
+      
+      // Documents: Can be large, use auto strategy
+      '2-1': {
+        fields: ['id'],      // Only need ID for validation
+        strategy: 'auto',     // Pre-load if < 100, else direct DB
+        threshold: 100        // Threshold for decision
+      }
+    }
+  },
 
   formSchema: {
     layout: 'vertical',
@@ -152,6 +174,17 @@ export const Phase2Step3Config: StepConfig = {
         condition: "status === 'Resolved' || status === 'Closed'",
         message: 'Resolved findings must include recommendations for remediation'
       }
+    },
+    {
+      // ✅ CROSS-STEP VALIDATION: Validates against data from Step 2-1 (Documents)
+      name: 'document-reference-validation',
+      description: 'Evidence must reference valid documents uploaded in Step 2-1',
+      type: 'cross-step',
+      config: {
+        validatorClass: 'DocumentReferenceValidator'
+      }
+      // This validator will use context.dependencyData.get('2-1') 
+      // which contains documents from the Document table (NO additional DB query!)
     }
   ],
 

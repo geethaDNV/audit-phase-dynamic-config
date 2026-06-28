@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { MetadataRegistryService } from './metadata-registry.service';
 import { ValidationService } from './validation.service';
+import { StepMetadataService } from './step-metadata.service';
 import { RepositoryRegistry } from '../repositories/repository-registry';
 import {
   StepContext,
@@ -14,27 +15,34 @@ type PrismaTransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '
 /**
  * Step Service
  * 
- * Orchestrates step data operations using the strategy pattern.
+ * ARCHITECTURE: Domain tables as single source of truth (no StepData duplication)
+ * 
  * This is the core of the metadata-driven architecture:
  * 
  * 1. Loads step configuration from metadata registry
- * 2. Validates data using multi-layer validation
- * 3. Executes appropriate fetch/save strategy
- * 4. Handles transactions for multi-table operations
- * 5. Provides consistent API regardless of step complexity
+ * 2. Validates data using multi-layer validation (queries domain tables)
+ * 3. Saves to DOMAIN TABLES (Client, Document, etc.) - NOT StepData
+ * 4. Records metadata/audit trail separately (optional)
+ * 5. Handles transactions for multi-table operations
  * 
- * Adding a new step? Just create its config file - this service handles it automatically!
+ * Benefits:
+ * - No data duplication
+ * - Foreign keys enforce integrity
+ * - Simpler architecture
+ * - Domain tables queryable for reporting/analytics
  */
 export class StepService {
   private repoRegistry: RepositoryRegistry;
   private validationService: ValidationService;
+  private metadataService: StepMetadataService;
 
   constructor(
     private prisma: PrismaClient,
     private metadataRegistry: MetadataRegistryService
   ) {
     this.repoRegistry = new RepositoryRegistry(prisma);
-    this.validationService = new ValidationService();
+    this.validationService = new ValidationService(prisma);
+    this.metadataService = new StepMetadataService(prisma);
   }
 
   /**
@@ -55,6 +63,12 @@ export class StepService {
 
   /**
    * Save step data based on configured save strategy
+   * 
+   * Flow:
+   * 1. Validate payload (queries domain tables for dependencies)
+   * 2. Save to DOMAIN TABLES (Client, Document, etc.)
+   * 3. Record metadata/audit trail (optional)
+   * 4. Update step status
    */
   async saveStepData(
     auditId: number,
@@ -62,19 +76,85 @@ export class StepService {
     stepId: number,
     payload: StepDataPayload
   ): Promise<StepDataPayload> {
+    const stepKey = `${phaseId}-${stepId}`;
+    
     // Validate step exists
     this.metadataRegistry.validateStep(phaseId, stepId);
 
     const config = this.metadataRegistry.getConfig(phaseId, stepId);
     const context: StepContext = { auditId, phaseId, stepId };
 
-    // ✅ VALIDATION - Multi-layer validation before saving
-    await this.validationService.validate(payload, config.formSchema, context);
+    try {
+      // 1. VALIDATION - Queries domain tables for cross-step dependencies
+      await this.validationService.validate(
+        payload,
+        config.formSchema,
+        context,
+        config.dependencies
+      );
+      
+      // Record successful validation
+      await this.metadataService.recordValidation(auditId, phaseId, stepId, 'passed');
 
-    // Execute save strategy
-    const result = await this.executeSaveStrategy(config, payload, context);
+      // 2. SAVE TO DOMAIN TABLES (not StepData)
+      const result = await this.executeSaveStrategy(config, payload, context);
+      
+      // 3. Record metadata (submission info, audit trail)
+      await this.metadataService.recordSubmission(auditId, phaseId, stepId, {
+        stepKey,
+        submittedAt: new Date(),
+        validationStatus: 'passed',
+        isDraft: false
+      });
+      
+      // 4. Update step status to completed
+      await this.updateStepStatus(auditId, phaseId, stepId, 'completed');
 
-    return result;
+      return result;
+      
+    } catch (error: any) {
+      // Record validation failure
+      const errors = error.errors || [error.message];
+      await this.metadataService.recordValidation(
+        auditId,
+        phaseId,
+        stepId,
+        'failed',
+        errors
+      );
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Update step completion status
+   */
+  private async updateStepStatus(
+    auditId: number,
+    phaseId: number,
+    stepId: number,
+    status: string
+  ): Promise<void> {
+    const stepKey = `${phaseId}-${stepId}`;
+    
+    await this.prisma.auditStepStatus.upsert({
+      where: {
+        auditId_phaseId_stepId: { auditId, phaseId, stepId }
+      },
+      create: {
+        auditId,
+        phaseId,
+        stepId,
+        stepKey,
+        status,
+        completedAt: status === 'completed' ? new Date() : null
+      },
+      update: {
+        status,
+        completedAt: status === 'completed' ? new Date() : null
+      }
+    });
   }
 
   /**
