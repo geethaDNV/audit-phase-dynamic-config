@@ -1,6 +1,6 @@
 /**
  * Audit Wizard Component
- * Main wizard interface with phase/step navigation
+ * ✅ FULLY DYNAMIC - Loads all phases and steps from API
  */
 
 import { Component, signal, OnInit, inject, ViewChild } from '@angular/core';
@@ -13,12 +13,6 @@ import { Audit } from '../models/audit.model';
 import { StepConfig } from '../models/step-config.model';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner.component';
 import { DynamicFormComponent } from '../../../shared/components/dynamic-form/dynamic-form.component';
-
-interface Phase {
-  id: number;
-  name: string;
-  stepCount: number;
-}
 
 @Component({
   selector: 'app-audit-wizard',
@@ -70,33 +64,38 @@ interface Phase {
                 Phases
               </h2>
               <nav class="space-y-2">
-                @for (phase of phases; track phase.id) {
+                @for (phase of phases; track phase.phaseId) {
                   <button
-                    (click)="navigateToPhase(phase.id)"
+                    (click)="navigateToPhase(phase.phaseId)"
                     class="w-full text-left px-4 py-3 rounded-lg transition-all"
-                    [class.bg-blue-600]="phase.id === currentPhase()"
-                    [class.text-white]="phase.id === currentPhase()"
-                    [class.hover:bg-blue-700]="phase.id === currentPhase()"
-                    [class.bg-gray-100]="phase.id !== currentPhase()"
-                    [class.text-gray-700]="phase.id !== currentPhase()"
-                    [class.hover:bg-gray-200]="phase.id !== currentPhase()"
+                    [class.bg-blue-600]="phase.phaseId === currentPhase()"
+                    [class.text-white]="phase.phaseId === currentPhase()"
+                    [class.hover:bg-blue-700]="phase.phaseId === currentPhase()"
+                    [class.bg-gray-100]="phase.phaseId !== currentPhase()"
+                    [class.text-gray-700]="phase.phaseId !== currentPhase()"
+                    [class.hover:bg-gray-200]="phase.phaseId !== currentPhase()"
                   >
                     <div class="flex items-center gap-3">
-                      <div 
-                        class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold"
-                        [class.bg-white]="phase.id === currentPhase()"
-                        [class.text-blue-600]="phase.id === currentPhase()"
-                        [class.bg-gray-300]="phase.id !== currentPhase()"
-                        [class.text-gray-600]="phase.id !== currentPhase()"
-                      >
-                        {{ phase.id }}
-                      </div>
+                      <!-- ✅ Dynamic icon from database -->
+                      @if (phase.icon) {
+                        <span class="text-2xl">{{ phase.icon }}</span>
+                      } @else {
+                        <div 
+                          class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold"
+                          [class.bg-white]="phase.phaseId === currentPhase()"
+                          [class.text-blue-600]="phase.phaseId === currentPhase()"
+                          [class.bg-gray-300]="phase.phaseId !== currentPhase()"
+                          [class.text-gray-600]="phase.phaseId !== currentPhase()"
+                        >
+                          {{ phase.phaseId }}
+                        </div>
+                      }
                       <div class="flex-1">
                         <div class="font-medium text-sm">
-                          Phase {{ phase.id }}
+                          {{ phase.phaseName }}
                         </div>
                         <div class="text-xs opacity-90">
-                          {{ phase.stepCount }} steps
+                          {{ phase.steps.length }} steps
                         </div>
                       </div>
                     </div>
@@ -122,7 +121,10 @@ interface Phase {
                       <!-- Step Circle -->
                       <button
                         (click)="goToStep(step)"
+                        [disabled]="!isStepAvailable(currentPhase(), step)"
                         class="flex flex-col items-center gap-2"
+                        [class.opacity-50]="!isStepAvailable(currentPhase(), step)"
+                        [class.cursor-not-allowed]="!isStepAvailable(currentPhase(), step)"
                       >
                         <div 
                           class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all"
@@ -261,21 +263,10 @@ export class AuditWizardComponent implements OnInit {
   stepMetadata = signal<StepConfig | null>(null);
   stepData = signal<any>(null);
 
-  // Phase configuration (matches backend POC scope)
-  phases: Phase[] = [
-    { id: 1, name: 'Client Assessment', stepCount: 3 },
-    { id: 2, name: 'Checklist Execution', stepCount: 3 }
-  ];
-
-  // Step names (for display only)
-  private stepNames: Record<string, string> = {
-    '1-1': 'Client Basic Information',
-    '1-2': 'Entity Selection',
-    '1-3': 'Risk Assessment',
-    '2-1': 'Document Upload',
-    '2-2': 'Checklist Items',
-    '2-3': 'Audit Findings'
-  };
+  // ✅ Dynamic phases from API (no hardcoding!)
+  get phases() {
+    return this.metadataService.phases();
+  }
 
   async ngOnInit() {
     const auditId = Number(this.route.snapshot.paramMap.get('auditId'));
@@ -285,7 +276,15 @@ export class AuditWizardComponent implements OnInit {
       return;
     }
 
+    // ✅ Load phases first (required for step validation)
+    await this.metadataService.loadPhases();
+    
+    // ✅ Load audit data
     await this.loadAudit(auditId);
+    
+    // ✅ Load audit progress (initializes step statuses if needed)
+    await this.metadataService.loadAuditProgress(auditId);
+    
     this.loading.set(false);
     
     // Load the first step
@@ -309,6 +308,13 @@ export class AuditWizardComponent implements OnInit {
   }
 
   async goToStep(stepId: number) {
+    // ✅ Validate step is available before navigating
+    const stepKey = `${this.currentPhase()}-${stepId}`;
+    if (!this.metadataService.isStepAvailable(stepKey)) {
+      console.warn(`[AuditWizard] Step ${stepKey} is not available - navigation blocked`);
+      return;
+    }
+    
     this.currentStep.set(stepId);
     await this.loadCurrentStep();
   }
@@ -391,6 +397,9 @@ export class AuditWizardComponent implements OnInit {
         this.currentStep(),
         formValue
       );
+      
+      // ✅ Reload audit progress to update step completion status
+      await this.metadataService.loadAuditProgress(auditId);
 
       // Clear any previous errors on success
       if (this.dynamicFormRef) {
@@ -398,20 +407,24 @@ export class AuditWizardComponent implements OnInit {
       }
 
       // Auto-advance to next step after successful save
-      const maxSteps = this.getStepsForCurrentPhase().length;
+      const currentPhaseData = this.metadataService.getPhase(this.currentPhase());
+      if (!currentPhaseData) return;
+      
+      const maxSteps = currentPhaseData.steps.length;
       if (this.currentStep() < maxSteps) {
         // More steps in current phase - go to next step
         await this.nextStep();
       } else {
         // Last step of phase completed - check if there's a next phase
-        const currentPhaseIndex = this.phases.findIndex(p => p.id === this.currentPhase());
-        const hasNextPhase = currentPhaseIndex >= 0 && currentPhaseIndex < this.phases.length - 1;
+        const phases = this.phases;
+        const currentPhaseIndex = phases.findIndex(p => p.phaseId === this.currentPhase());
+        const hasNextPhase = currentPhaseIndex >= 0 && currentPhaseIndex < phases.length - 1;
         
         if (hasNextPhase) {
           // Navigate to next phase's first step
-          const nextPhase = this.phases[currentPhaseIndex + 1];
-          console.log('[AuditWizard] Phase completed, navigating to next phase:', nextPhase.id);
-          this.currentPhase.set(nextPhase.id);
+          const nextPhase = phases[currentPhaseIndex + 1];
+          console.log('[AuditWizard] Phase completed, navigating to next phase:', nextPhase.phaseId);
+          this.currentPhase.set(nextPhase.phaseId);
           this.currentStep.set(1);
           await this.loadCurrentStep();
         } else {
@@ -489,19 +502,31 @@ export class AuditWizardComponent implements OnInit {
   }
 
   getStepsForCurrentPhase(): number[] {
-    const phase = this.phases.find(p => p.id === this.currentPhase());
+    const phase = this.metadataService.getPhase(this.currentPhase());
     if (!phase) return [];
     
-    return Array.from({ length: phase.stepCount }, (_, i) => i + 1);
+    return Array.from({ length: phase.steps.length }, (_, i) => i + 1);
   }
 
   getStepName(phaseId: number, stepId: number): string {
-    const key = `${phaseId}-${stepId}`;
-    return this.stepNames[key] || `Step ${stepId}`;
+    // ✅ Get step name dynamically from metadata
+    const phase = this.metadataService.getPhase(phaseId);
+    if (!phase) return `Step ${stepId}`;
+    
+    const step = phase.steps.find(s => s.stepId === stepId);
+    return step?.stepName || `Step ${stepId}`;
+  }
+
+  /**
+   * ✅ Check if a step is available (not blocked by dependencies)
+   */
+  isStepAvailable(phaseId: number, stepId: number): boolean {
+    const stepKey = `${phaseId}-${stepId}`;
+    return this.metadataService.isStepAvailable(stepKey);
   }
 
   getCurrentPhaseName(): string {
-    const phase = this.phases.find(p => p.id === this.currentPhase());
-    return phase?.name || '';
+    const phase = this.metadataService.getPhase(this.currentPhase());
+    return phase?.phaseName || '';
   }
 }

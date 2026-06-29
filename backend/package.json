@@ -14,8 +14,11 @@
     "db:push": "prisma db push",
     "db:reset": "prisma migrate reset --force",
     "sync-metadata": "tsx src/scripts/sync-metadata-to-db.ts",
+    "sync:steps": "tsx prisma/sync-step-configs.ts",
     "seed:phases": "tsx prisma/seed-phases.ts",
     "compute-dependencies": "tsx prisma/compute-step-dependencies.ts",
+    "fix:step-statuses": "tsx prisma/fix-step-statuses.ts",
+    "verify:steps": "tsx prisma/verify-step-setup.ts",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
   },

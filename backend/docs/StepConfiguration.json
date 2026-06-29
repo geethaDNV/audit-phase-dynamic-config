@@ -1,0 +1,986 @@
+[
+    {
+        "id": 1,
+        "stepKey": "1-1",
+        "phaseId": 1,
+        "stepId": 1,
+        "stepName": "Client Basic Information",
+        "description": "Capture essential client details for the audit",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "name",
+                    "type": "text",
+                    "label": "Client Name",
+                    "helpText": "Legal name of the organization being audited",
+                    "validation": {
+                        "required": true,
+                        "maxLength": 100,
+                        "minLength": 3
+                    },
+                    "placeholder": "Enter client company name"
+                },
+                {
+                    "name": "email",
+                    "type": "email",
+                    "label": "Email Address",
+                    "helpText": "Primary contact email for audit communications",
+                    "validation": {
+                        "email": true,
+                        "required": true
+                    },
+                    "placeholder": "contact@company.com"
+                },
+                {
+                    "name": "industry",
+                    "type": "select",
+                    "label": "Industry",
+                    "options": [
+                        "Technology",
+                        "Finance",
+                        "Healthcare",
+                        "Manufacturing",
+                        "Other"
+                    ],
+                    "helpText": "Primary business sector",
+                    "validation": {
+                        "enum": [
+                            "Technology",
+                            "Finance",
+                            "Healthcare",
+                            "Manufacturing",
+                            "Other"
+                        ],
+                        "required": true
+                    },
+                    "placeholder": "Select industry"
+                },
+                {
+                    "name": "phone",
+                    "type": "text",
+                    "label": "Phone Number",
+                    "helpText": "Optional - include country code",
+                    "validation": {
+                        "pattern": "^\\+?[\\d\\s\\-\\(\\)]{7,20}$",
+                        "patternMessage": "Enter a valid phone number with country code (e.g., +1 555-123-4567)"
+                    },
+                    "placeholder": "+1 (555) 123-4567"
+                },
+                {
+                    "name": "address",
+                    "type": "text",
+                    "label": "Address",
+                    "helpText": "Primary business address",
+                    "validation": {
+                        "maxLength": 255
+                    },
+                    "placeholder": "123 Main St, City, State ZIP"
+                },
+                {
+                    "name": "website",
+                    "type": "text",
+                    "label": "Website",
+                    "helpText": "Company website URL",
+                    "validation": {
+                        "pattern": "^https?:\\/\\/.+",
+                        "maxLength": 255,
+                        "patternMessage": "Enter a valid URL starting with http:// or https://"
+                    },
+                    "placeholder": "https://www.company.com"
+                },
+                {
+                    "name": "taxId",
+                    "type": "text",
+                    "label": "Tax ID",
+                    "helpText": "Employer Identification Number (EIN) or Tax ID",
+                    "validation": {
+                        "maxLength": 50
+                    },
+                    "placeholder": "12-3456789"
+                },
+                {
+                    "name": "fiscalYearEnd",
+                    "type": "date",
+                    "label": "Fiscal Year End",
+                    "helpText": "End date of fiscal year",
+                    "validation": {},
+                    "placeholder": "YYYY-MM-DD"
+                }
+            ],
+            "businessRules": []
+        },
+        "dataConfig": {
+            "save": {
+                "model": "client",
+                "strategy": "prisma-upsert",
+                "transactional": false
+            },
+            "fetch": {
+                "model": "client",
+                "strategy": "prisma-simple"
+            }
+        },
+        "businessRules": null,
+        "dependencies": {
+            "dependents": [
+                "1-2",
+                "1-3",
+                "2-1",
+                "2-2",
+                "2-3"
+            ]
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:41.347",
+        "updatedAt": "2026-06-29 08:33:43.713"
+    },
+    {
+        "id": 2,
+        "stepKey": "1-2",
+        "phaseId": 1,
+        "stepId": 2,
+        "stepName": "Entity & Contact Selection",
+        "description": "Select primary entity and contacts associated with this audit",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "selectedEntityId",
+                    "type": "select",
+                    "label": "Primary Entity",
+                    "helpText": "Choose the main entity that will be audited",
+                    "validation": {
+                        "required": true
+                    },
+                    "placeholder": "Select the primary entity for this audit",
+                    "optionsSource": {
+                        "dataPath": "entities",
+                        "labelField": "name",
+                        "valueField": "id"
+                    }
+                },
+                {
+                    "name": "selectedContacts",
+                    "type": "multi-select",
+                    "label": "Key Contacts",
+                    "helpText": "Choose the primary contacts involved in this audit",
+                    "validation": {
+                        "minItems": 1
+                    },
+                    "placeholder": "Select key contacts for this audit",
+                    "optionsSource": {
+                        "dataPath": "contacts",
+                        "labelField": "displayName",
+                        "valueField": "id"
+                    }
+                }
+            ],
+            "layout": "vertical",
+            "submitLabel": "Save Selection"
+        },
+        "dataConfig": {
+            "save": {
+                "strategy": "custom",
+                "transactional": false,
+                "repositoryClass": "Step2Repository",
+                "validationRules": [
+                    {
+                        "type": "required-field",
+                        "field": "selectedEntityId",
+                        "message": "Primary entity selection is required"
+                    }
+                ]
+            },
+            "fetch": {
+                "sources": [
+                    {
+                        "name": "entities",
+                        "model": "entity",
+                        "filter": "byAuditClientId"
+                    },
+                    {
+                        "name": "contacts",
+                        "model": "contact",
+                        "filter": "byAuditClientId"
+                    }
+                ],
+                "strategy": "prisma-compose",
+                "repositoryClass": "Step2Repository"
+            }
+        },
+        "businessRules": null,
+        "dependencies": {
+            "dependents": [
+                "1-3"
+            ],
+            "requiredSteps": [
+                "1-1"
+            ],
+            "dataReferences": {
+                "1-1": {
+                    "fields": [
+                        "id",
+                        "name",
+                        "email"
+                    ],
+                    "strategy": "preload"
+                }
+            }
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:41.871",
+        "updatedAt": "2026-06-29 08:33:44.28"
+    },
+    {
+        "id": 3,
+        "stepKey": "1-3",
+        "phaseId": 1,
+        "stepId": 3,
+        "stepName": "Risk Assessment",
+        "description": "Aggregate and analyze risk data from multiple sources",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "riskLevel",
+                    "type": "select",
+                    "label": "Risk Level",
+                    "options": [
+                        {
+                            "label": "Low",
+                            "value": "Low"
+                        },
+                        {
+                            "label": "Medium",
+                            "value": "Medium"
+                        },
+                        {
+                            "label": "High",
+                            "value": "High"
+                        },
+                        {
+                            "label": "Critical",
+                            "value": "Critical"
+                        }
+                    ],
+                    "required": true,
+                    "validation": {
+                        "message": "Risk level is required",
+                        "required": true
+                    }
+                },
+                {
+                    "name": "riskScore",
+                    "type": "number",
+                    "label": "Risk Score",
+                    "required": true,
+                    "validation": {
+                        "max": 100,
+                        "min": 0,
+                        "message": "Risk score must be between 0 and 100",
+                        "required": true
+                    }
+                },
+                {
+                    "name": "previousRisk",
+                    "type": "select",
+                    "label": "Previous Risk Level",
+                    "options": [
+                        {
+                            "label": "Low",
+                            "value": "Low"
+                        },
+                        {
+                            "label": "Medium",
+                            "value": "Medium"
+                        },
+                        {
+                            "label": "High",
+                            "value": "High"
+                        },
+                        {
+                            "label": "Critical",
+                            "value": "Critical"
+                        }
+                    ],
+                    "required": false
+                },
+                {
+                    "name": "justification",
+                    "type": "textarea",
+                    "label": "Risk Justification",
+                    "required": false,
+                    "validation": {
+                        "message": "Justification cannot exceed 2000 characters",
+                        "maxLength": 2000
+                    }
+                }
+            ],
+            "layout": "vertical",
+            "submitLabel": "Save Risk Assessment"
+        },
+        "dataConfig": {
+            "save": {
+                "model": "riskAssessment",
+                "strategy": "prisma-upsert",
+                "transactional": false
+            },
+            "fetch": {
+                "strategy": "custom-query",
+                "repositoryClass": "Step3Repository"
+            }
+        },
+        "businessRules": [
+            {
+                "name": "risk-level-validation",
+                "type": "custom",
+                "config": {
+                    "message": "Overall risk level should reflect the highest individual risk category"
+                },
+                "description": "Overall risk level must match the highest individual risk score"
+            }
+        ],
+        "dependencies": {
+            "dependents": [],
+            "requiredSteps": [
+                "1-1",
+                "1-2"
+            ],
+            "dataReferences": {
+                "1-1": {
+                    "fields": [
+                        "id",
+                        "name",
+                        "industry"
+                    ],
+                    "strategy": "preload"
+                },
+                "1-2": {
+                    "fields": [
+                        "selectedEntityId",
+                        "entities"
+                    ],
+                    "strategy": "preload"
+                }
+            }
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:42.132",
+        "updatedAt": "2026-06-29 08:33:44.545"
+    },
+    {
+        "id": 4,
+        "stepKey": "2-1",
+        "phaseId": 2,
+        "stepId": 1,
+        "stepName": "Document Upload",
+        "description": "Upload and categorize audit documents with conditional validation",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "items",
+                    "type": "array",
+                    "label": "Documents",
+                    "required": false,
+                    "validation": {
+                        "message": "Maximum 100 documents allowed per audit",
+                        "maxItems": 100
+                    },
+                    "arrayItemType": "object",
+                    "displayConfig": {
+                        "emptyMessage": "No documents uploaded yet. Click \"Add Document\" to get started.",
+                        "addButtonLabel": "Add Document",
+                        "removeButtonLabel": "Remove"
+                    },
+                    "arrayItemSchema": {
+                        "fields": [
+                            {
+                                "name": "title",
+                                "type": "text",
+                                "label": "Document Title",
+                                "required": true,
+                                "validation": {
+                                    "message": "Document title must be between 3 and 200 characters",
+                                    "required": true,
+                                    "maxLength": 200,
+                                    "minLength": 3
+                                }
+                            },
+                            {
+                                "name": "documentType",
+                                "type": "select",
+                                "label": "Document Type",
+                                "options": [
+                                    "Financial Statement",
+                                    "Compliance Report",
+                                    "Internal Memo",
+                                    "External Communication",
+                                    "Supporting Evidence"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Financial Statement",
+                                        "Compliance Report",
+                                        "Internal Memo",
+                                        "External Communication",
+                                        "Supporting Evidence"
+                                    ],
+                                    "message": "Document type is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select document type"
+                                }
+                            },
+                            {
+                                "name": "filePath",
+                                "type": "text",
+                                "label": "File Path",
+                                "required": true,
+                                "validation": {
+                                    "message": "File path must start with /documents/ and end with .pdf, .docx, .xlsx, or .txt",
+                                    "pattern": "^/documents/.*\\.(pdf|docx|xlsx|txt)$",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "/documents/filename.pdf"
+                                }
+                            },
+                            {
+                                "name": "fileSize",
+                                "type": "number",
+                                "label": "File Size (bytes)",
+                                "required": true,
+                                "validation": {
+                                    "max": 52428800,
+                                    "min": 1,
+                                    "message": "File size must be between 1 byte and 50 MB",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "name": "description",
+                                "type": "textarea",
+                                "label": "Description",
+                                "required": false,
+                                "validation": {
+                                    "message": "Description cannot exceed 1000 characters",
+                                    "maxLength": 1000
+                                },
+                                "displayConfig": {
+                                    "rows": 3,
+                                    "placeholder": "Document description..."
+                                }
+                            },
+                            {
+                                "name": "isConfidential",
+                                "type": "checkbox",
+                                "label": "Confidential",
+                                "required": false,
+                                "displayConfig": {
+                                    "helpText": "Mark as confidential document"
+                                }
+                            },
+                            {
+                                "name": "tags",
+                                "type": "text",
+                                "label": "Tags (comma-separated)",
+                                "required": false,
+                                "validation": {
+                                    "message": "Tags can only contain letters, numbers, commas, spaces, and hyphens",
+                                    "pattern": "^[a-zA-Z0-9,\\s-]*$"
+                                },
+                                "displayConfig": {
+                                    "placeholder": "tag1, tag2, tag3"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "layout": "vertical",
+            "submitLabel": "Save Documents"
+        },
+        "dataConfig": {
+            "save": {
+                "model": "document",
+                "strategy": "prisma-create",
+                "bulkOperation": true,
+                "transactional": true,
+                "deleteExisting": true,
+                "repositoryClass": "DocumentRepository"
+            },
+            "fetch": {
+                "model": "document",
+                "strategy": "prisma-simple",
+                "returnArray": true
+            }
+        },
+        "businessRules": [
+            {
+                "name": "confidential-document-validation",
+                "type": "custom",
+                "config": {
+                    "message": "Confidential documents must meet security requirements"
+                },
+                "description": "Confidential documents require additional validation and audit trail"
+            },
+            {
+                "name": "financial-statement-requirement",
+                "type": "conditional",
+                "config": {
+                    "message": "Financial statements must be uploaded as PDF files",
+                    "condition": "documentType === 'Financial Statement'"
+                },
+                "description": "Financial statements must be in PDF format"
+            }
+        ],
+        "dependencies": {
+            "dependents": [
+                "2-3"
+            ],
+            "requiredSteps": [
+                "1-1"
+            ],
+            "dataReferences": {
+                "1-1": {
+                    "fields": [
+                        "id",
+                        "name"
+                    ],
+                    "strategy": "preload"
+                }
+            }
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:42.402",
+        "updatedAt": "2026-06-29 08:33:44.818"
+    },
+    {
+        "id": 5,
+        "stepKey": "2-2",
+        "phaseId": 2,
+        "stepId": 2,
+        "stepName": "Checklist Items",
+        "description": "Define and manage checklist items for this audit",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "items",
+                    "type": "array",
+                    "label": "Checklist Items",
+                    "required": true,
+                    "validation": {
+                        "message": "At least one checklist item is required",
+                        "maxItems": 50,
+                        "minItems": 1,
+                        "required": true
+                    },
+                    "arrayItemType": "object",
+                    "displayConfig": {
+                        "emptyMessage": "No checklist items yet. Click \"Add Checklist Item\" to get started.",
+                        "addButtonLabel": "Add Checklist Item",
+                        "removeButtonLabel": "Remove"
+                    },
+                    "arrayItemSchema": {
+                        "fields": [
+                            {
+                                "name": "title",
+                                "type": "text",
+                                "label": "Item Title",
+                                "required": true,
+                                "validation": {
+                                    "message": "Title is required and must be under 200 characters",
+                                    "required": true,
+                                    "maxLength": 200
+                                }
+                            },
+                            {
+                                "name": "description",
+                                "type": "textarea",
+                                "label": "Description",
+                                "required": false,
+                                "displayConfig": {
+                                    "rows": 3,
+                                    "placeholder": "Describe what needs to be checked..."
+                                }
+                            },
+                            {
+                                "name": "category",
+                                "type": "select",
+                                "label": "Category",
+                                "options": [
+                                    "Financial",
+                                    "Operational",
+                                    "Compliance",
+                                    "IT",
+                                    "HR",
+                                    "Other"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Financial",
+                                        "Operational",
+                                        "Compliance",
+                                        "IT",
+                                        "HR",
+                                        "Other"
+                                    ],
+                                    "message": "Category is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select category"
+                                }
+                            },
+                            {
+                                "name": "priority",
+                                "type": "select",
+                                "label": "Priority",
+                                "options": [
+                                    "Low",
+                                    "Medium",
+                                    "High",
+                                    "Critical"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Low",
+                                        "Medium",
+                                        "High",
+                                        "Critical"
+                                    ],
+                                    "message": "Priority is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select priority"
+                                }
+                            },
+                            {
+                                "name": "isCompleted",
+                                "type": "checkbox",
+                                "label": "Completed",
+                                "required": false,
+                                "displayConfig": {
+                                    "helpText": "Mark as completed"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "layout": "vertical",
+            "submitLabel": "Save Checklist"
+        },
+        "dataConfig": {
+            "save": {
+                "model": "checklistItem",
+                "strategy": "prisma-create",
+                "bulkOperation": true,
+                "transactional": true,
+                "deleteExisting": true,
+                "validationRules": [
+                    {
+                        "type": "required-field",
+                        "field": "items",
+                        "message": "At least one checklist item is required"
+                    },
+                    {
+                        "type": "array-min",
+                        "field": "items",
+                        "value": 1,
+                        "message": "Add at least one checklist item"
+                    },
+                    {
+                        "type": "array-max",
+                        "field": "items",
+                        "value": 50,
+                        "message": "Maximum 50 checklist items allowed"
+                    }
+                ]
+            },
+            "fetch": {
+                "model": "checklistItem",
+                "filter": "byAuditId",
+                "strategy": "prisma-simple",
+                "returnArray": true
+            }
+        },
+        "businessRules": [
+            {
+                "name": "unique-titles",
+                "type": "validation",
+                "config": {
+                    "field": "title",
+                    "checkUniqueness": true
+                },
+                "description": "Checklist item titles should be unique within an audit"
+            },
+            {
+                "name": "priority-distribution",
+                "type": "warning",
+                "config": {
+                    "warnIfNone": "High"
+                },
+                "description": "Recommend at least one high-priority item"
+            }
+        ],
+        "dependencies": {
+            "dependents": [],
+            "optionalSteps": [
+                "2-1"
+            ],
+            "requiredSteps": [
+                "1-1"
+            ],
+            "dataReferences": {
+                "1-1": {
+                    "fields": [
+                        "id",
+                        "name"
+                    ],
+                    "strategy": "preload"
+                },
+                "2-1": {
+                    "fields": [
+                        "id",
+                        "title"
+                    ],
+                    "strategy": "auto",
+                    "threshold": 100
+                }
+            }
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:42.669",
+        "updatedAt": "2026-06-29 08:33:45.155"
+    },
+    {
+        "id": 6,
+        "stepKey": "2-3",
+        "phaseId": 2,
+        "stepId": 3,
+        "stepName": "Audit Findings",
+        "description": "Record findings with supporting evidence and recommendations in a single transaction",
+        "formSchema": {
+            "fields": [
+                {
+                    "name": "items",
+                    "type": "array",
+                    "label": "Audit Findings",
+                    "required": false,
+                    "validation": {
+                        "message": "Maximum 100 findings allowed per audit",
+                        "maxItems": 100
+                    },
+                    "arrayItemType": "object",
+                    "displayConfig": {
+                        "emptyMessage": "No findings recorded yet. Click \"Add Finding\" to get started.",
+                        "addButtonLabel": "Add Finding",
+                        "removeButtonLabel": "Remove"
+                    },
+                    "arrayItemSchema": {
+                        "fields": [
+                            {
+                                "name": "title",
+                                "type": "text",
+                                "label": "Finding Title",
+                                "required": true,
+                                "validation": {
+                                    "message": "Finding title must be between 5 and 200 characters",
+                                    "required": true,
+                                    "maxLength": 200,
+                                    "minLength": 5
+                                }
+                            },
+                            {
+                                "name": "description",
+                                "type": "textarea",
+                                "label": "Description",
+                                "required": true,
+                                "validation": {
+                                    "message": "Description must be at least 20 characters",
+                                    "required": true,
+                                    "minLength": 20
+                                },
+                                "displayConfig": {
+                                    "rows": 4,
+                                    "placeholder": "Describe the finding in detail..."
+                                }
+                            },
+                            {
+                                "name": "severity",
+                                "type": "select",
+                                "label": "Severity",
+                                "options": [
+                                    "Low",
+                                    "Medium",
+                                    "High",
+                                    "Critical"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Low",
+                                        "Medium",
+                                        "High",
+                                        "Critical"
+                                    ],
+                                    "message": "Severity level is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select severity"
+                                }
+                            },
+                            {
+                                "name": "category",
+                                "type": "select",
+                                "label": "Category",
+                                "options": [
+                                    "Financial",
+                                    "Compliance",
+                                    "Operational",
+                                    "Technical",
+                                    "Governance"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Financial",
+                                        "Compliance",
+                                        "Operational",
+                                        "Technical",
+                                        "Governance"
+                                    ],
+                                    "message": "Category is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select category"
+                                }
+                            },
+                            {
+                                "name": "status",
+                                "type": "select",
+                                "label": "Status",
+                                "options": [
+                                    "Open",
+                                    "In Progress",
+                                    "Resolved",
+                                    "Closed"
+                                ],
+                                "required": true,
+                                "validation": {
+                                    "enum": [
+                                        "Open",
+                                        "In Progress",
+                                        "Resolved",
+                                        "Closed"
+                                    ],
+                                    "message": "Status is required",
+                                    "required": true
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Select status"
+                                }
+                            },
+                            {
+                                "name": "assignedTo",
+                                "type": "text",
+                                "label": "Assigned To",
+                                "required": false,
+                                "validation": {
+                                    "message": "Assigned to cannot exceed 100 characters",
+                                    "maxLength": 100
+                                },
+                                "displayConfig": {
+                                    "placeholder": "Enter assignee name"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "layout": "vertical",
+            "submitLabel": "Save Findings"
+        },
+        "dataConfig": {
+            "save": {
+                "model": "finding",
+                "strategy": "complex-transaction",
+                "bulkOperation": true,
+                "transactional": true,
+                "deleteExisting": true,
+                "repositoryClass": "FindingRepository"
+            },
+            "fetch": {
+                "strategy": "custom-query",
+                "repositoryClass": "FindingRepository"
+            }
+        },
+        "businessRules": [
+            {
+                "name": "critical-finding-validation",
+                "type": "conditional",
+                "config": {
+                    "message": "Critical findings require evidence and recommendations",
+                    "condition": "severity === 'Critical'"
+                },
+                "description": "Critical findings must have at least one piece of evidence and one recommendation"
+            },
+            {
+                "name": "resolution-validation",
+                "type": "conditional",
+                "config": {
+                    "message": "Resolved findings must include recommendations for remediation",
+                    "condition": "status === 'Resolved' || status === 'Closed'"
+                },
+                "description": "Resolved or Closed findings must have recommendations"
+            },
+            {
+                "name": "document-reference-validation",
+                "type": "cross-step",
+                "config": {
+                    "validatorClass": "DocumentReferenceValidator"
+                },
+                "description": "Evidence must reference valid documents uploaded in Step 2-1"
+            }
+        ],
+        "dependencies": {
+            "dependents": [],
+            "requiredSteps": [
+                "1-1",
+                "2-1"
+            ],
+            "dataReferences": {
+                "1-1": {
+                    "fields": [
+                        "name",
+                        "email",
+                        "industry"
+                    ],
+                    "strategy": "preload"
+                },
+                "2-1": {
+                    "fields": [
+                        "id"
+                    ],
+                    "strategy": "auto",
+                    "threshold": 100
+                }
+            }
+        },
+        "isActive": true,
+        "version": 1,
+        "createdAt": "2026-06-29 08:33:42.935",
+        "updatedAt": "2026-06-29 08:33:45.612"
+    }
+]

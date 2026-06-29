@@ -76,6 +76,19 @@ export class StepFormComponent implements OnInit {
     this.phaseId = Number(this.route.snapshot.paramMap.get('phaseId'));
     this.stepId = Number(this.route.snapshot.paramMap.get('stepId'));
 
+    // ✅ Load phases and audit progress FIRST (required for validation)
+    await this.metadataService.loadPhases();
+    await this.metadataService.loadAuditProgress(this.auditId);
+
+    // ✅ VALIDATE: Check if this step is available
+    const stepKey = `${this.phaseId}-${this.stepId}`;
+    if (!this.metadataService.isStepAvailable(stepKey)) {
+      console.error(`[StepForm] Step ${stepKey} is not available - redirecting to wizard`);
+      alert('This step is not available yet. Please complete the required previous steps first.');
+      this.router.navigate(['/audits', this.auditId, 'wizard']);
+      return;
+    }
+
     await this.loadStepMetadata();
     await this.loadStepData();
     this.loading.set(false);
@@ -126,6 +139,9 @@ export class StepFormComponent implements OnInit {
         this.stepId,
         formValue
       );
+
+      // ✅ Reload audit progress to update step completion status
+      await this.metadataService.loadAuditProgress(this.auditId);
 
       // Navigate back to wizard
       this.router.navigate(['/audits', this.auditId, 'wizard']);

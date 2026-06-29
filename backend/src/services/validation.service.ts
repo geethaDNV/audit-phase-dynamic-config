@@ -9,6 +9,7 @@ import {
 } from '../config/types/step-config.types';
 import { ValidatorRegistry } from '../validators/validator-registry';
 import { ValidationContextService } from './validation-context.service';
+import { ExpressionEvaluatorService } from './expression-evaluator.service';
 
 /**
  * Validation Service
@@ -27,10 +28,12 @@ import { ValidationContextService } from './validation-context.service';
 export class ValidationService {
   private validatorRegistry: ValidatorRegistry;
   private contextService: ValidationContextService;
+  private expressionEvaluator: ExpressionEvaluatorService;
 
   constructor(prisma: PrismaClient) {
     this.validatorRegistry = new ValidatorRegistry();
     this.contextService = new ValidationContextService(prisma);
+    this.expressionEvaluator = new ExpressionEvaluatorService();
   }
 
   /**
@@ -274,32 +277,19 @@ export class ValidationService {
   }
 
   /**
-   * Evaluate a condition string against payload
-   * Example: "currentRiskLevel === 'High' || currentRiskLevel === 'Critical'"
+   * Evaluate a condition string against payload using safe Jexl evaluator
+   * Example: "riskLevel === 'High' || riskLevel === 'Critical'"
+   * 
+   * UPDATED: Now uses Jexl instead of unsafe new Function()
    */
   private evaluateCondition(condition: string, payload: any): boolean {
-    try {
-      // Build context object
-      const context: Record<string, any> = { ...payload };
-
-      // Replace field names with context values in the condition string
-      let expression = condition;
-      for (const key of Object.keys(context)) {
-        const value = context[key];
-        const quotedValue = typeof value === 'string' ? `"${value}"` : value;
-        expression = expression.replace(
-          new RegExp(`\\b${key}\\b`, 'g'),
-          String(quotedValue)
-        );
-      }
-
-      // Evaluate the expression
-      // eslint-disable-next-line no-new-func
-      return new Function(`return ${expression}`)();
-    } catch (error) {
-      console.error('Error evaluating condition:', condition, error);
-      return false;
-    }
+    // Build context with step prefix for cross-step references
+    const context: Record<string, any> = {
+      ...payload,
+      step: payload  // Allow both direct field access and step.field
+    };
+    
+    return this.expressionEvaluator.evaluate(condition, context);
   }
 
   /**

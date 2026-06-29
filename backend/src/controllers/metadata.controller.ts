@@ -114,7 +114,8 @@ export class MetadataController {
   /**
    * GET /api/metadata/phases
    * 
-   * Returns all available phases with their steps from PhaseConfiguration database
+   * Returns all available phases with their steps from database
+   * ✅ FULLY DYNAMIC - No hardcoded phases or steps!
    */
   async getAllPhases(_req: Request, res: Response): Promise<void> {
     try {
@@ -124,18 +125,28 @@ export class MetadataController {
         orderBy: { displayOrder: 'asc' }
       });
       
-      // Load all active steps from registry
-      const allSteps = metadataRegistry.getAllSteps();
+      // ✅ Load step configurations from database (not from TypeScript registry!)
+      const stepConfigs = await prisma.stepConfiguration.findMany({
+        where: { isActive: true },
+        select: {
+          stepKey: true,
+          phaseId: true,
+          stepId: true,
+          stepName: true,
+          description: true
+        },
+        orderBy: [{ phaseId: 'asc' }, { stepId: 'asc' }]
+      });
       
       // Group steps by phase
       const stepsByPhase = new Map<number, any[]>();
-      allSteps.forEach(step => {
+      stepConfigs.forEach(step => {
         if (!stepsByPhase.has(step.phaseId)) {
           stepsByPhase.set(step.phaseId, []);
         }
         stepsByPhase.get(step.phaseId)!.push({
           stepId: step.stepId,
-          stepKey: `${step.phaseId}-${step.stepId}`,
+          stepKey: step.stepKey,
           stepName: step.stepName,
           description: step.description
         });
@@ -175,6 +186,7 @@ export class MetadataController {
    * GET /api/metadata/audits/:auditId/progress
    * 
    * Returns progress for all steps in an audit
+   * ✅ Loads steps from database, not TypeScript registry
    */
   async getAuditProgress(req: Request, res: Response): Promise<void> {
     try {
@@ -197,16 +209,24 @@ export class MetadataController {
         orderBy: [{ phaseId: 'asc' }, { stepId: 'asc' }]
       });
 
-      // Get all available steps from registry
-      const allSteps = metadataRegistry.getAllSteps();
+      // ✅ Get all available steps from database (not registry!)
+      const allSteps = await prisma.stepConfiguration.findMany({
+        where: { isActive: true },
+        select: {
+          stepKey: true,
+          phaseId: true,
+          stepId: true,
+          stepName: true
+        },
+        orderBy: [{ phaseId: 'asc' }, { stepId: 'asc' }]
+      });
 
       // Merge status with configuration
       const progress = allSteps.map(step => {
-        const stepKey = `${step.phaseId}-${step.stepId}`;
-        const status = statuses.find(s => s.stepKey === stepKey);
+        const status = statuses.find(s => s.stepKey === step.stepKey);
 
         return {
-          stepKey,
+          stepKey: step.stepKey,
           phaseId: step.phaseId,
           stepId: step.stepId,
           stepName: step.stepName,
@@ -285,8 +305,12 @@ export class MetadataController {
         return;
       }
 
-      // Verify step exists
-      if (!metadataRegistry.hasStep(phaseId, stepId)) {
+      // ✅ Verify step exists in database (not registry!)
+      const stepExists = await prisma.stepConfiguration.findUnique({
+        where: { stepKey }
+      });
+
+      if (!stepExists) {
         res.status(404).json({
           success: false,
           error: {
@@ -336,6 +360,101 @@ export class MetadataController {
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Failed to update step status',
+          details: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * POST /api/metadata/audits/:auditId/initialize-steps
+   * 
+   * Initialize step statuses for an audit
+   * Creates pending status records for all active steps
+   */
+  async initializeStepStatuses(req: Request, res: Response): Promise<void> {
+    try {
+      const auditId = parseInt(req.params.auditId, 10);
+
+      if (isNaN(auditId)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: 'auditId must be a valid number',
+          },
+        });
+        return;
+      }
+
+      // Verify audit exists
+      const audit = await prisma.audit.findUnique({
+        where: { id: auditId }
+      });
+
+      if (!audit) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'AUDIT_NOT_FOUND',
+            message: `Audit ${auditId} not found`,
+          },
+        });
+        return;
+      }
+
+      // Get all active steps from database
+      const allSteps = await prisma.stepConfiguration.findMany({
+        where: { isActive: true },
+        select: {
+          stepKey: true,
+          phaseId: true,
+          stepId: true
+        },
+        orderBy: [{ phaseId: 'asc' }, { stepId: 'asc' }]
+      });
+
+      // Check which steps already have status records
+      const existingStatuses = await prisma.auditStepStatus.findMany({
+        where: { auditId },
+        select: { stepKey: true }
+      });
+
+      const existingStepKeys = new Set(existingStatuses.map(s => s.stepKey));
+
+      // Create status records for steps that don't have them
+      const newStatuses = allSteps
+        .filter(step => !existingStepKeys.has(step.stepKey))
+        .map(step => ({
+          auditId,
+          phaseId: step.phaseId,
+          stepId: step.stepId,
+          stepKey: step.stepKey,
+          status: 'pending'
+        }));
+
+      if (newStatuses.length > 0) {
+        await prisma.auditStepStatus.createMany({
+          data: newStatuses
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          initialized: newStatuses.length,
+          existing: existingStatuses.length,
+          total: allSteps.length
+        },
+      });
+    } catch (error: any) {
+      console.error('Error initializing step statuses:', error);
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to initialize step statuses',
           details: error.message,
         },
       });

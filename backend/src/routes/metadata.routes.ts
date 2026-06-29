@@ -39,4 +39,10 @@ router.post(
   (req, res) => metadataController.updateStepStatus(req, res)
 );
 
+// Initialize step statuses for an audit
+router.post(
+  '/audits/:auditId/initialize-steps',
+  (req, res) => metadataController.initializeStepStatuses(req, res)
+);
+
 export default router;

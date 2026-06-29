@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { stepRegistry } from '../src/config/step-registry';
 
 const prisma = new PrismaClient();
 
@@ -19,7 +20,9 @@ async function main() {
   await prisma.entity.deleteMany();
   await prisma.client.deleteMany();
   await prisma.stepData.deleteMany();
+  await prisma.auditStepStatus.deleteMany();
   await prisma.stepConfiguration.deleteMany();
+  await prisma.phaseConfiguration.deleteMany();
   await prisma.auditPhase.deleteMany();
   await prisma.audit.deleteMany();
 
@@ -530,12 +533,257 @@ async function main() {
   console.log('✅ Created findings with evidence and recommendations');
 
   // ============================================================================
+  // PHASE CONFIGURATIONS (Dynamic Phases)
+  // ============================================================================
+
+  console.log('\n📐 Creating phase configurations...');
+  
+  const phases = [
+    {
+      phaseId: 1,
+      phaseKey: 'client-assessment',
+      phaseName: 'Client Assessment',
+      description: 'Gather and validate client information',
+      displayOrder: 1,
+      icon: '👤',
+      color: '#3B82F6'
+    },
+    {
+      phaseId: 2,
+      phaseKey: 'audit-execution',
+      phaseName: 'Audit Execution',
+      description: 'Execute audit procedures and collect evidence',
+      displayOrder: 2,
+      icon: '📋',
+      color: '#10B981'
+    },
+    {
+      phaseId: 3,
+      phaseKey: 'evidence-collection',
+      phaseName: 'Evidence Collection',
+      description: 'Document findings and supporting evidence',
+      displayOrder: 3,
+      icon: '📎',
+      color: '#F59E0B'
+    },
+    {
+      phaseId: 4,
+      phaseKey: 'risk-analysis',
+      phaseName: 'Risk Analysis',
+      description: 'Analyze identified risks and controls',
+      displayOrder: 4,
+      icon: '⚠️',
+      color: '#EF4444'
+    },
+    {
+      phaseId: 5,
+      phaseKey: 'findings-recommendations',
+      phaseName: 'Findings & Recommendations',
+      description: 'Summarize findings and provide recommendations',
+      displayOrder: 5,
+      icon: '💡',
+      color: '#8B5CF6'
+    },
+    {
+      phaseId: 6,
+      phaseKey: 'quality-review',
+      phaseName: 'Quality Review',
+      description: 'Internal quality assurance review',
+      displayOrder: 6,
+      icon: '✅',
+      color: '#06B6D4'
+    },
+    {
+      phaseId: 7,
+      phaseKey: 'final-report',
+      phaseName: 'Final Report',
+      description: 'Prepare and finalize audit report',
+      displayOrder: 7,
+      icon: '📄',
+      color: '#6366F1'
+    },
+    {
+      phaseId: 8,
+      phaseKey: 'client-presentation',
+      phaseName: 'Client Presentation',
+      description: 'Present findings to client management',
+      displayOrder: 8,
+      icon: '🎯',
+      color: '#EC4899'
+    }
+  ];
+
+  for (const phase of phases) {
+    await prisma.phaseConfiguration.upsert({
+      where: { phaseId: phase.phaseId },
+      create: phase,
+      update: phase
+    });
+  }
+
+  console.log(`✅ Created ${phases.length} phase configurations`);
+
+  // ============================================================================
+  // STEP CONFIGURATIONS (Sync from TypeScript Registry)
+  // ============================================================================
+
+  console.log('\n⚙️  Syncing step configurations from TypeScript registry...');
+  
+  const allSteps = stepRegistry.getAllSteps();
+  
+  if (allSteps.length === 0) {
+    console.warn('⚠️  No steps found in TypeScript registry!');
+    console.log('   Make sure step configs exist in src/config/steps/');
+  } else {
+    let syncedCount = 0;
+    
+    for (const config of allSteps) {
+      await prisma.stepConfiguration.upsert({
+        where: { stepKey: config.stepKey },
+        create: {
+          stepKey: config.stepKey,
+          phaseId: config.phaseId,
+          stepId: config.stepId,
+          stepName: config.stepName,
+          description: config.description || '',
+          formSchema: config.formSchema as any,
+          dataConfig: config.dataConfig as any,
+          businessRules: config.businessRules || null,
+          dependencies: config.dependencies || null,
+          isActive: true,
+          version: 1
+        },
+        update: {
+          stepName: config.stepName,
+          description: config.description || '',
+          formSchema: config.formSchema as any,
+          dataConfig: config.dataConfig as any,
+          businessRules: config.businessRules || null,
+          dependencies: config.dependencies || null,
+          version: { increment: 1 }
+        }
+      });
+      syncedCount++;
+    }
+    
+    console.log(`✅ Synced ${syncedCount} step configurations to database`);
+  }
+
+  // ============================================================================
+  // COMPUTE STEP DEPENDENCIES (Auto-calculate dependents)
+  // ============================================================================
+
+  console.log('\n🔗 Computing step dependencies...');
+  
+  const allStepsWithDeps = await prisma.stepConfiguration.findMany({
+    select: {
+      stepKey: true,
+      dependencies: true
+    }
+  });
+  
+  const dependencyGraph = new Map<string, Set<string>>();
+  
+  // Build forward dependency graph
+  allStepsWithDeps.forEach(step => {
+    const deps = (step.dependencies as any)?.requiredSteps || [];
+    deps.forEach((depKey: string) => {
+      if (!dependencyGraph.has(depKey)) {
+        dependencyGraph.set(depKey, new Set());
+      }
+      dependencyGraph.get(depKey)!.add(step.stepKey);
+    });
+  });
+  
+  // Update each step with its dependents
+  let depsUpdated = 0;
+  for (const step of allStepsWithDeps) {
+    const dependents = Array.from(dependencyGraph.get(step.stepKey) || []);
+    
+    if (dependents.length > 0 || (step.dependencies as any)?.requiredSteps) {
+      const currentDeps = (step.dependencies as any) || {};
+      const updatedDeps = {
+        ...currentDeps,
+        dependents
+      };
+      
+      await prisma.stepConfiguration.update({
+        where: { stepKey: step.stepKey },
+        data: { dependencies: updatedDeps as any }
+      });
+      
+      depsUpdated++;
+    }
+  }
+  
+  console.log(`✅ Updated dependencies for ${depsUpdated} steps`);
+
+  // ============================================================================
+  // INITIALIZE AUDIT STEP STATUSES
+  // ============================================================================
+
+  console.log('\n📊 Initializing step statuses for seeded audits...');
+  
+  // Get all active steps
+  const activeSteps = await prisma.stepConfiguration.findMany({
+    where: { isActive: true },
+    select: {
+      stepKey: true,
+      phaseId: true,
+      stepId: true
+    },
+    orderBy: [{ phaseId: 'asc' }, { stepId: 'asc' }]
+  });
+  
+  // Get all audits
+  const allAudits = await prisma.audit.findMany({
+    select: { id: true, name: true }
+  });
+  
+  let totalInitialized = 0;
+  
+  for (const audit of allAudits) {
+    // Check existing statuses
+    const existingStatuses = await prisma.auditStepStatus.findMany({
+      where: { auditId: audit.id },
+      select: { stepKey: true }
+    });
+    
+    const existingStepKeys = new Set(existingStatuses.map(s => s.stepKey));
+    
+    // Create missing status records
+    const newStatuses = activeSteps
+      .filter(step => !existingStepKeys.has(step.stepKey))
+      .map(step => ({
+        auditId: audit.id,
+        phaseId: step.phaseId,
+        stepId: step.stepId,
+        stepKey: step.stepKey,
+        status: 'pending'
+      }));
+    
+    if (newStatuses.length > 0) {
+      await prisma.auditStepStatus.createMany({
+        data: newStatuses
+      });
+      
+      totalInitialized += newStatuses.length;
+      console.log(`   ✅ Audit #${audit.id} (${audit.name}): initialized ${newStatuses.length} step statuses`);
+    }
+  }
+  
+  console.log(`✅ Initialized ${totalInitialized} step statuses across ${allAudits.length} audits`);
+
+  // ============================================================================
   // FINAL SUMMARY
   // ============================================================================
 
   const counts = {
     audits: await prisma.audit.count(),
     phases: await prisma.auditPhase.count(),
+    phaseConfigs: await prisma.phaseConfiguration.count(),
+    stepConfigs: await prisma.stepConfiguration.count(),
+    stepStatuses: await prisma.auditStepStatus.count(),
     clients: await prisma.client.count(),
     entities: await prisma.entity.count(),
     contacts: await prisma.contact.count(),
@@ -553,6 +801,9 @@ async function main() {
   console.log('📊 Summary:');
   console.log(`   Audits:              ${counts.audits}`);
   console.log(`   Phases:              ${counts.phases}`);
+  console.log(`   Phase Configs:       ${counts.phaseConfigs}`);
+  console.log(`   Step Configs:        ${counts.stepConfigs}`);
+  console.log(`   Step Statuses:       ${counts.stepStatuses}`);
   console.log(`   Clients:             ${counts.clients}`);
   console.log(`   Entities:            ${counts.entities}`);
   console.log(`   Contacts:            ${counts.contacts}`);
