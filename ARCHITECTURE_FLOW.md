@@ -1,0 +1,603 @@
+# System Architecture - Visual Flow Diagram
+
+This document provides visual diagrams to help you understand the complete system architecture and data flow.
+
+---
+
+## 🏗️ Overall System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND (Angular 21)                           │
+│                                                                         │
+│  ┌────────────────────┐         ┌─────────────────────────────────┐   │
+│  │ AuditWizardComponent│────────▶│ DynamicFormComponent            │   │
+│  │  - Manages steps   │         │  - Renders ANY step form        │   │
+│  │  - Navigation      │         │  - Builds from formSchema       │   │
+│  │  - State tracking  │         │  - Client-side validation       │   │
+│  └────────────────────┘         └─────────────────────────────────┘   │
+│           │                                      │                     │
+│           │ Fetches Metadata                     │ Submits Form Data   │
+│           ▼                                      ▼                     │
+│  ┌────────────────────────────────────────────────────────────┐       │
+│  │             StepService (HTTP Client)                      │       │
+│  │  - GET /api/metadata/phases/:phaseId/steps/:stepId        │       │
+│  │  - GET /api/audits/:auditId/phases/:phaseId/steps/:stepId │       │
+│  │  - POST /api/audits/:auditId/phases/:phaseId/steps/:stepId│       │
+│  └────────────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                         HTTP Requests (JSON)
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      BACKEND (Node.js + Express)                        │
+│                                                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                        CONTROLLERS                               │  │
+│  │  ┌──────────────────┐          ┌──────────────────────┐         │  │
+│  │  │ MetadataController│          │ StepController       │         │  │
+│  │  │  - GET metadata  │          │  - GET step data     │         │  │
+│  │  │  - Returns       │          │  - POST save data    │         │  │
+│  │  │    formSchema    │          │  - ONE controller    │         │  │
+│  │  │                  │          │    for ALL steps!    │         │  │
+│  │  └──────────────────┘          └──────────────────────┘         │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                       │                      │                          │
+│                       ▼                      ▼                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                          SERVICES                                │  │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐ │  │
+│  │  │ MetadataRegistry │  │ StepService      │  │ ValidationSvc │ │  │
+│  │  │  - Loads configs │  │  - Orchestrates  │  │  - Multi-layer│ │  │
+│  │  │    from registry │  │  - Fetch/Save    │  │    validation │ │  │
+│  │  └──────────────────┘  └──────────────────┘  └───────────────┘ │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                       │                      │                          │
+│                       ▼                      ▼                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │              CONFIGURATION LAYER (HYBRID)                        │  │
+│  │  ┌──────────────────────────────────────────────────────────┐   │  │
+│  │  │  StepRegistry (In-Memory) ← TypeScript Configs           │   │  │
+│  │  │    - Loads all TypeScript configs at startup             │   │  │
+│  │  │    - Used for: formSchema, validation, fetch/save        │   │  │
+│  │  │    - Map<"1-1", Phase1Step1Config>                       │   │  │
+│  │  │    - Map<"1-2", Phase1Step2Config>                       │   │  │
+│  │  └──────────────────────────────────────────────────────────┘   │  │
+│  │                    ▲                     ▲                        │  │
+│  │                    │ Backend loads       │ npm run sync:steps    │  │
+│  │  ┌─────────────────┴──────┐  ┌──────────┴─────────────────┐    │  │
+│  │  │ TypeScript Config Files│  │ Database (Synced)          │    │  │
+│  │  │  phase1/step1.config.ts│  │ • StepConfiguration table  │    │  │
+│  │  │  phase1/step2.config.ts│  │ • AuditStepStatus table    │    │  │
+│  │  │  phase1/step3.config.ts│  │ • PhaseConfiguration table │    │  │
+│  │  │  (Source of truth)     │  │ (Runtime tracking)         │    │  │
+│  │  └────────────────────────┘  └────────────┬───────────────┘    │  │
+│  │                                             │                     │  │
+│  │                                             │ Frontend loads      │  │
+│  │                                             ▼ (phases, status)    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                    │
+│                                    ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                      REPOSITORY LAYER                            │  │
+│  │  ┌────────────────┐  ┌─────────────────┐  ┌──────────────────┐ │  │
+│  │  │ Generic Repos  │  │ Custom Repos    │  │ Domain Repos     │ │  │
+│  │  │  - Client      │  │  - Step2Repo    │  │  - Client        │ │  │
+│  │  │  - Document    │  │  - Step3Repo    │  │  - Entity        │ │  │
+│  │  │  - Finding     │  │  - FindingRepo  │  │  - Contact       │ │  │
+│  │  └────────────────┘  └─────────────────┘  └──────────────────┘ │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                    │
+│                                    ▼                                    │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                      DATA ACCESS (Prisma)                        │  │
+│  │                   - Type-safe ORM                                │  │
+│  │                   - Transaction support                          │  │
+│  │                   - Query builder                                │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      DATABASE (PostgreSQL)                              │
+│                                                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ DOMAIN TABLES (Single Source of Truth)                          │  │
+│  │  • Client              • Document        • Finding              │  │
+│  │  • Entity              • ChecklistItem   • RiskAssessment       │  │
+│  │  • Contact             • Evidence        • Recommendation       │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ METADATA TABLES                                                  │  │
+│  │  • StepConfiguration   • AuditStepStatus                         │  │
+│  │  • Audit               • AuditPhase                              │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 Complete Request Flow: Step 1-2 (Entity Selection)
+
+### Step 1: User Loads Step Form
+
+```
+┌──────────────┐
+│   Browser    │
+└──────┬───────┘
+       │ 1. Navigate to /audits/1/phase/1/step/2
+       ▼
+┌─────────────────────────┐
+│ AuditWizardComponent    │
+│  - Reads route params   │
+│  - phaseId = 1          │
+│  - stepId = 2           │
+└──────┬──────────────────┘
+       │ 2. Fetch metadata + data
+       ▼
+┌─────────────────────────┐
+│   StepService (HTTP)    │
+│                         │
+│  Parallel Requests:     │
+│  ┌───────────────────┐  │
+│  │ GET /metadata/1/2 │  │
+│  └───────────────────┘  │
+│  ┌───────────────────┐  │
+│  │ GET /audits/1/... │  │
+│  └───────────────────┘  │
+└──────┬──────────────────┘
+       │ HTTP JSON
+       ▼
+```
+
+### Step 2: Backend Processes Requests
+
+```
+┌────────────────────────────────────────────────┐
+│              BACKEND SERVER                    │
+│                                                │
+│  Request 1: GET /api/metadata/phases/1/steps/2│
+│  ┌──────────────────────────────────────────┐ │
+│  │ MetadataController.getFormSchema()       │ │
+│  │   ↓                                      │ │
+│  │ MetadataRegistry.getConfig(1, 2)         │ │
+│  │   ↓                                      │ │
+│  │ StepRegistry.configs.get("1-2")          │ │
+│  │   ↓                                      │ │
+│  │ Returns: Phase1Step2Config               │ │
+│  │   {                                      │ │
+│  │     formSchema: {                        │ │
+│  │       fields: [...]                      │ │
+│  │     }                                    │ │
+│  │   }                                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Request 2: GET /api/audits/1/phases/1/steps/2│
+│  ┌──────────────────────────────────────────┐ │
+│  │ StepController.getStepData()             │ │
+│  │   ↓                                      │ │
+│  │ StepService.getStepData(1, 1, 2)         │ │
+│  │   ↓                                      │ │
+│  │ Load config for step 1-2                 │ │
+│  │ Strategy: "prisma-compose"               │ │
+│  │   ↓                                      │ │
+│  │ Step2Repository.fetch(auditId=1)         │ │
+│  │   ↓                                      │ │
+│  │ Query 1: Get Client (from step 1-1)     │ │
+│  │   SELECT * FROM Client WHERE auditId=1   │ │
+│  │   → { id: 1, name: "Acme", ... }        │ │
+│  │   ↓                                      │ │
+│  │ Query 2: Get Entities for this Client   │ │
+│  │   SELECT * FROM Entity WHERE clientId=1  │ │
+│  │   → [{ id: 1, name: "LLC" }, ...]       │ │
+│  │   ↓                                      │ │
+│  │ Query 3: Get Contacts for this Client   │ │
+│  │   SELECT * FROM Contact WHERE clientId=1 │ │
+│  │   → [{ id: 1, name: "John" }, ...]      │ │
+│  │   ↓                                      │ │
+│  │ Return combined data:                    │ │
+│  │   {                                      │ │
+│  │     entities: [...],                     │ │
+│  │     contacts: [...],                     │ │
+│  │     selectedEntityId: null               │ │
+│  │   }                                      │ │
+│  └──────────────────────────────────────────┘ │
+└────────────────────────────────────────────────┘
+       │
+       │ JSON Response
+       ▼
+```
+
+### Step 3: Frontend Renders Dynamic Form
+
+```
+┌────────────────────────────────────────────────┐
+│         DynamicFormComponent                   │
+│                                                │
+│  Input 1: formSchema = {                      │
+│    fields: [                                   │
+│      {                                         │
+│        name: "selectedEntityId",               │
+│        type: "select",                         │
+│        optionsSource: {                        │
+│          dataPath: "entities",    ◄────────┐  │
+│          labelField: "name",                │  │
+│          valueField: "id"                   │  │
+│        }                                    │  │
+│      }                                      │  │
+│    ]                                        │  │
+│  }                                          │  │
+│                                             │  │
+│  Input 2: initialData = {                  │  │
+│    entities: [                    ──────────┘  │
+│      { id: 1, name: "Acme LLC" },              │
+│      { id: 2, name: "Acme Inc" }               │
+│    ],                                          │
+│    contacts: [...]                             │
+│  }                                             │
+│                                                │
+│  ┌──────────────────────────────────────────┐ │
+│  │ populateDynamicOptions()                 │ │
+│  │                                          │ │
+│  │ For field "selectedEntityId":            │ │
+│  │   dataPath = "entities"                  │ │
+│  │   sourceData = initialData["entities"]   │ │
+│  │              = [{ id: 1, name: "LLC" }]  │ │
+│  │                                          │ │
+│  │   Map to options:                        │ │
+│  │   field.options = [                      │ │
+│  │     { label: "Acme LLC", value: 1 },     │ │
+│  │     { label: "Acme Inc", value: 2 }      │ │
+│  │   ]                                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  ┌──────────────────────────────────────────┐ │
+│  │ buildFormGroup()                         │ │
+│  │                                          │ │
+│  │ Creates Angular FormControl:             │ │
+│  │   selectedEntityId = FormControl(        │ │
+│  │     value: null,                         │ │
+│  │     validators: [Validators.required]    │ │
+│  │   )                                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Renders HTML:                                 │
+│  ┌──────────────────────────────────────────┐ │
+│  │ <select formControlName="selectedEntity">│ │
+│  │   <option value="">Select...</option>    │ │
+│  │   <option value="1">Acme LLC</option>    │ │
+│  │   <option value="2">Acme Inc</option>    │ │
+│  │ </select>                                │ │
+│  └──────────────────────────────────────────┘ │
+└────────────────────────────────────────────────┘
+```
+
+### Step 4: User Submits Form
+
+```
+┌────────────────────────────────────────────────┐
+│   User Actions                                 │
+│                                                │
+│  1. Selects "Acme LLC" (value: 1)             │
+│  2. Selects contacts [1, 2]                    │
+│  3. Clicks "Save & Continue"                   │
+└────────────────┬───────────────────────────────┘
+                 │
+                 ▼
+┌────────────────────────────────────────────────┐
+│  DynamicFormComponent.handleSubmit()           │
+│                                                │
+│  Step 1: Client-side validation                │
+│  ┌──────────────────────────────────────────┐ │
+│  │ form.invalid?                            │ │
+│  │   selectedEntityId: required ✓           │ │
+│  │   selectedContacts: minItems(1) ✓        │ │
+│  │ → Validation passed                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 2: Extract form value                   │
+│  ┌──────────────────────────────────────────┐ │
+│  │ formValue = {                            │ │
+│  │   selectedEntityId: 1,                   │ │
+│  │   selectedContacts: [1, 2]               │ │
+│  │ }                                        │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 3: Emit to parent                       │
+│  ┌──────────────────────────────────────────┐ │
+│  │ this.formSubmit.emit(formValue)          │ │
+│  └──────────────────────────────────────────┘ │
+└────────────────┬───────────────────────────────┘
+                 │
+                 ▼
+┌────────────────────────────────────────────────┐
+│  AuditWizardComponent.handleStepSubmit()       │
+│                                                │
+│  POST /api/audits/1/phases/1/steps/2           │
+│  Body: {                                       │
+│    selectedEntityId: 1,                        │
+│    selectedContacts: [1, 2]                    │
+│  }                                             │
+└────────────────┬───────────────────────────────┘
+                 │ HTTP POST
+                 ▼
+```
+
+### Step 5: Backend Validates and Saves
+
+```
+┌────────────────────────────────────────────────┐
+│  BACKEND: StepController.saveStepData()        │
+│                                                │
+│  ↓                                             │
+│  StepService.saveStepData(1, 1, 2, payload)    │
+│                                                │
+│  Step 1: Load Configuration                    │
+│  ┌──────────────────────────────────────────┐ │
+│  │ config = getConfig(1, 2)                 │ │
+│  │ → Phase1Step2Config                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 2: Server-Side Validation                │
+│  ┌──────────────────────────────────────────┐ │
+│  │ ValidationService.validate()             │ │
+│  │                                          │ │
+│  │ Layer 1: Field validation                │ │
+│  │   ✓ selectedEntityId: required           │ │
+│  │   ✓ selectedContacts: minItems(1)        │ │
+│  │                                          │ │
+│  │ Layer 2: Cross-step validation           │ │
+│  │   Check Step 1-1 completed               │ │
+│  │   SELECT * FROM AuditStepStatus          │ │
+│  │     WHERE stepKey='1-1' AND auditId=1    │ │
+│  │   → status = 'completed' ✓               │ │
+│  │                                          │ │
+│  │ Layer 3: Business rules                  │ │
+│  │   (none for this step)                   │ │
+│  │                                          │ │
+│  │ → Validation PASSED                      │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 3: Execute Save Strategy                 │
+│  ┌──────────────────────────────────────────┐ │
+│  │ Strategy: "custom"                       │ │
+│  │ Repository: Step2Repository              │ │
+│  │                                          │ │
+│  │ Step2Repository.save(1, payload)         │ │
+│  │   ↓                                      │ │
+│  │   Get client record:                     │ │
+│  │   SELECT * FROM Client WHERE auditId=1   │ │
+│  │   → client.id = 1                        │ │
+│  │   ↓                                      │ │
+│  │   Update client:                         │ │
+│  │   UPDATE Client                          │ │
+│  │     SET selectedEntityId = 1             │ │
+│  │     WHERE id = 1                         │ │
+│  │   ↓                                      │ │
+│  │   Store contact selections...            │ │
+│  │   (implementation detail)                │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 4: Update Step Status                   │
+│  ┌──────────────────────────────────────────┐ │
+│  │ UPSERT INTO AuditStepStatus              │ │
+│  │   SET status = 'completed'               │ │
+│  │   WHERE auditId=1, phaseId=1, stepId=2   │ │
+│  └──────────────────────────────────────────┘ │
+│                                                │
+│  Step 5: Return Success Response               │
+│  ┌──────────────────────────────────────────┐ │
+│  │ {                                        │ │
+│  │   success: true,                         │ │
+│  │   data: {                                │ │
+│  │     selectedEntityId: 1,                 │ │
+│  │     selectedContacts: [1, 2]             │ │
+│  │   }                                      │ │
+│  │ }                                        │ │
+│  └──────────────────────────────────────────┘ │
+└────────────────┬───────────────────────────────┘
+                 │ JSON Response
+                 ▼
+┌────────────────────────────────────────────────┐
+│  AuditWizardComponent                          │
+│  - Receives success response                   │
+│  - Navigates to next step: /audits/1/.../1/3   │
+└────────────────────────────────────────────────┘
+```
+
+---
+
+## 📝 Configuration-Driven Magic
+
+### How ONE Controller Handles ALL Steps
+
+```typescript
+// StepController is the SAME for ALL steps!
+
+class StepController {
+  async saveStepData(req, res) {
+    const { auditId, phaseId, stepId } = req.params;
+    const payload = req.body;
+    
+    // 1. Load config for THIS specific step
+    const config = metadataRegistry.getConfig(phaseId, stepId);
+    //    ↑ Could be step 1-1, 1-2, 2-3... ANY step!
+    
+    // 2. Validate using rules from config.formSchema
+    await validationService.validate(
+      payload,
+      config.formSchema,  // ← Different rules per step
+      context,
+      config.dependencies
+    );
+    
+    // 3. Save using strategy from config.dataConfig.save
+    const result = await stepService.executeSaveStrategy(
+      config,  // ← Different strategy per step
+      payload,
+      context
+    );
+    
+    return res.json({ success: true, data: result });
+  }
+}
+```
+
+### Save Strategy Resolution
+
+```
+StepService.executeSaveStrategy(config, payload, context)
+    ↓
+    Check config.dataConfig.save.strategy
+    ↓
+    ┌─────────────────────────────────────┐
+    │  "prisma-upsert" → Generic upsert   │
+    │  "prisma-create" → Bulk create      │
+    │  "custom"        → Custom repository │
+    │  "complex-transaction" → Custom repo│
+    └─────────────────────────────────────┘
+    ↓
+    Execute appropriate save logic
+    ↓
+    Return saved data
+```
+
+---
+
+## 🎯 Key Architectural Patterns
+
+### 1. Registry Pattern
+
+```
+StepRegistry (Singleton)
+  ├─ Map<"1-1", Phase1Step1Config>
+  ├─ Map<"1-2", Phase1Step2Config>
+  ├─ Map<"1-3", Phase1Step3Config>
+  ├─ Map<"2-1", Phase2Step1Config>
+  ├─ Map<"2-2", Phase2Step2Config>
+  └─ Map<"2-3", Phase2Step3Config>
+
+Accessed via: stepRegistry.getConfig(phaseId, stepId)
+```
+
+### 2. Strategy Pattern
+
+```
+FetchStrategy
+  ├─ prisma-simple     → SingleTableRepository
+  ├─ prisma-compose    → CompositeRepository  
+  ├─ custom-query      → CustomQueryRepository
+  └─ custom            → CustomRepository
+
+SaveStrategy
+  ├─ prisma-upsert     → UpsertRepository
+  ├─ prisma-create     → BulkCreateRepository
+  ├─ custom            → CustomRepository
+  └─ complex-transaction → TransactionRepository
+```
+
+### 3. Repository Pattern
+
+```
+RepositoryRegistry
+  ├─ getRepository(model) → GenericRepository<Model>
+  │    - findByAuditId()
+  │    - upsert()
+  │    - createMany()
+  │
+  ├─ getCustomRepository(name) → CustomRepository
+  │    - Step2Repository
+  │    - Step3Repository
+  │    - FindingRepository
+  │
+  └─ getDomainRepository(model) → DomainRepository<Model>
+       - ClientRepository
+       - EntityRepository
+       - ContactRepository
+```
+
+### 4. Validation Pipeline
+
+```
+ValidationService.validate()
+  ↓
+  1. Field-Level Validation
+     - required, minLength, maxLength, pattern, etc.
+  ↓
+  2. Conditional Validation
+     - if severity = 'Critical', then evidence required
+  ↓
+  3. Cross-Step Validation
+     - Verify step 1-1 completed
+     - Check document references exist
+  ↓
+  4. Business Rules
+     - Custom validator classes
+  ↓
+  Pass/Fail → Continue or throw ValidationError
+```
+
+---
+
+## 🚀 Scalability
+
+### Adding Step 81, 82, 83...
+
+```
+1. Create config file:
+   src/config/steps/phase5/step81.config.ts
+
+2. Define configuration:
+   export const Phase5Step81Config: StepConfig = {
+     stepKey: '5-81',
+     phaseId: 5,
+     stepId: 81,
+     stepName: 'New Audit Step',
+     formSchema: { ... },
+     dataConfig: { ... }
+   }
+
+3. Register in step-registry.ts:
+   this.register(Phase5Step81Config);
+
+4. Done! ✅
+   - Form auto-generated
+   - Validation auto-applied
+   - Fetch/save auto-configured
+   - No new controllers
+   - No new components
+```
+
+---
+
+## Summary
+
+The system's power comes from **configuration over code** with a **hybrid architecture**:
+
+### Backend (TypeScript Configs):
+- ✅ **ONE controller** handles all 80 steps
+- ✅ **ONE service** processes all 80 data operations
+- ✅ **80 config files** define form schemas, validation, fetch/save strategies
+- ✅ Configs loaded from TypeScript for type safety
+
+### Frontend (Database Tracking):
+- ✅ **ONE form component** renders all 80 forms
+- ✅ Loads step lists from `StepConfiguration` table
+- ✅ Enforces dependencies via `AuditStepStatus` table (step completion tracking)
+- ✅ Does NOT use config dependencies field - uses status-based flow
+
+### Sync Process:
+- 📝 TypeScript configs (development source)
+- ⬇️ `npm run sync:steps`
+- 💾 Database tables (runtime tracking)
+
+This eliminates:
+- ❌ 80 controllers, 80 form components, 80 service classes
+- ❌ Thousands of lines of repetitive code
+
+And provides:
+- ✅ Type safety (TypeScript configs)
+- ✅ Runtime flexibility (Database tracking)
+- ✅ Consistency & Maintainability
